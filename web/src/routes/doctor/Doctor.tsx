@@ -23,10 +23,7 @@ export function DoctorPage() {
     const q = useDoctor()
     return (
         <>
-            <PageHeader
-                title="Doctor"
-                description="Everything Switcheroo can see: where secrets go, which CLIs are on PATH, who they are signed in as, and anything that would make a switch silently do nothing."
-            />
+            <PageHeader title="Doctor" />
             {q.isLoading && (
                 <Panel>
                     {[0, 1, 2, 3].map((i) => (

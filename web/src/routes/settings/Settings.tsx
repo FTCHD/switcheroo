@@ -55,7 +55,6 @@ export function SettingsPage() {
         <>
             <PageHeader
                 title="Settings"
-                description="How Switcheroo stores secrets, how it switches, and which CLIs it shows."
                 actions={
                     draft && (
                         <Button
