@@ -76,7 +76,26 @@ export function DoctorPage() {
                                             · hide
                                         </span>
                                     </summary>
-                                    <ul className="mt-2 space-y-0.5 text-muted-foreground">
+                                    <div className="mt-3 max-w-xl space-y-2 font-sans text-[13px] leading-relaxed break-normal text-foreground/80 text-pretty">
+                                        <p>
+                                            Switcheroo only finds CLIs that live in one of these
+                                            directories. A tool installed inside a project, such as{' '}
+                                            <code className="font-mono">wrangler</code> in a repo's{' '}
+                                            <code className="font-mono">node_modules/.bin</code>, is
+                                            invisible here even though its login file is global and
+                                            would switch fine.
+                                        </p>
+                                        <p>
+                                            To manage such a tool, install it globally (for example{' '}
+                                            <code className="font-mono">npm i -g wrangler</code>) or
+                                            add its directory to PATH. If a CLI works in your
+                                            terminal but is missing below, your shell adds a
+                                            directory that Switcheroo did not pick up; start it from
+                                            that terminal or add the directory to your login shell's
+                                            PATH.
+                                        </p>
+                                    </div>
+                                    <ul className="mt-3 space-y-0.5 text-muted-foreground">
                                         {q.data.path.map((p) => (
                                             <li key={p}>{p}</li>
                                         ))}
