@@ -69,7 +69,7 @@ cargo build --release          # → target/release/switcheroo
 
 - **Terminal**. Every operation is a `switcheroo` subcommand with `--json` output, so it scripts well. `switcheroo --help` or the Reference page in the web UI lists them all.
 - **Web UI**. `switcheroo open` starts a loopback-only server and opens a page showing each CLI, who it is signed in as, and the remembered accounts to switch to, plus diagnostics and settings.
-- **Tray**. `switcheroo tray` adds a menu-bar item with one submenu per CLI. Click an account to switch, "Save current login" to remember a login you made with the CLI itself, "Add account…" to open a terminal running the CLI's own sign-in.
+- **Tray**. `switcheroo tray` adds a menu-bar item with one submenu per CLI. Click an account to switch, "Save current login" to remember a login you made with the CLI itself, "Add account…" to open a terminal running the CLI's own sign-in. `switcheroo autostart enable` (or the "Start at login" toggle) makes it open when you sign in to the machine.
 
 ## Supported CLIs
 
@@ -116,6 +116,7 @@ Before switching, Switcheroo warns about anything that would make it a no-op: en
 | `list [provider]` · `rename` · `remove` | Manage remembered accounts |
 | `doctor` · `providers` | Diagnostics and the provider catalogue |
 | `tray` · `serve [--bind]` · `open` | Run the tray, the web server, or open the UI |
+| `autostart enable\|disable\|status` | Start the tray at login |
 | `completions <shell>` | Shell completions |
 
 Global: `--json`, `--vault auto|keychain|file`, `--data-dir DIR`, `-v`, `-q`. Exit codes: `0` ok, `1` error, `2` usage, `3` CLI not installed, `4` nothing signed in.

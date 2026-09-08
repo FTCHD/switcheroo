@@ -11,9 +11,20 @@ pub enum Action {
     Open,
     Refresh,
     Quit,
-    Switch { provider: String, account: String },
-    Save { provider: String },
-    Login { provider: String },
+    Switch {
+        provider: String,
+        account: String,
+    },
+    Save {
+        provider: String,
+    },
+    Login {
+        provider: String,
+    },
+    /// Toggle start-at-login to `enable`.
+    Autostart {
+        enable: bool,
+    },
     None,
 }
 
@@ -27,6 +38,8 @@ impl Action {
             (Some("switch"), Some(p), Some(a)) => Action::Switch { provider: p.to_string(), account: a.to_string() },
             (Some("save"), Some(p), _) => Action::Save { provider: p.to_string() },
             (Some("login"), Some(p), _) => Action::Login { provider: p.to_string() },
+            (Some("autostart"), Some("on"), _) => Action::Autostart { enable: false },
+            (Some("autostart"), Some("off"), _) => Action::Autostart { enable: true },
             _ => Action::None,
         }
     }
@@ -41,7 +54,7 @@ pub fn loading_menu() -> Menu {
     menu
 }
 
-pub fn build(statuses: &[ProviderStatus], settings: &Settings, last_error: Option<&str>) -> Menu {
+pub fn build(statuses: &[ProviderStatus], settings: &Settings, autostart: bool, last_error: Option<&str>) -> Menu {
     let menu = Menu::new();
     if let Some(err) = last_error {
         let _ = menu.append(&MenuItem::with_id("noop", format!("⚠ {}", truncate(err, 80)), false, None));
@@ -92,6 +105,13 @@ pub fn build(statuses: &[ProviderStatus], settings: &Settings, last_error: Optio
     let _ = menu.append(&PredefinedMenuItem::separator());
     let _ = menu.append(&MenuItem::with_id("open", "Open Switcheroo…", true, None));
     let _ = menu.append(&MenuItem::with_id("refresh", "Refresh", true, None));
+    let _ = menu.append(&CheckMenuItem::with_id(
+        if autostart { "autostart:on" } else { "autostart:off" },
+        "Start at login",
+        true,
+        autostart,
+        None,
+    ));
     let _ = menu.append(&PredefinedMenuItem::separator());
     let _ = menu.append(&MenuItem::with_id("quit", "Quit Switcheroo", true, None));
     menu
@@ -118,6 +138,8 @@ mod tests {
         assert_eq!(Action::parse("save:npm"), Action::Save { provider: "npm".into() });
         assert_eq!(Action::parse("login:fly"), Action::Login { provider: "fly".into() });
         assert_eq!(Action::parse("open"), Action::Open);
+        assert_eq!(Action::parse("autostart:on"), Action::Autostart { enable: false });
+        assert_eq!(Action::parse("autostart:off"), Action::Autostart { enable: true });
         assert_eq!(Action::parse("noop"), Action::None);
         assert_eq!(Action::parse("switch:x"), Action::None);
     }

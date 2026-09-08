@@ -142,6 +142,19 @@ pub async fn put_settings(State(st): State<AppState>, Json(settings): Json<Setti
     .await
 }
 
+pub async fn get_autostart(State(st): State<AppState>) -> ApiResult {
+    blocking(st.core, move |c| c.autostart()).await
+}
+
+#[derive(Deserialize)]
+pub struct AutostartBody {
+    enabled: bool,
+}
+
+pub async fn put_autostart(State(st): State<AppState>, Json(body): Json<AutostartBody>) -> ApiResult {
+    blocking(st.core, move |c| c.set_autostart(body.enabled)).await
+}
+
 pub async fn doctor(State(st): State<AppState>) -> ApiResult {
     blocking(st.core, move |c| Ok(c.doctor())).await
 }

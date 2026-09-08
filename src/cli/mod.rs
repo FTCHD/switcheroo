@@ -114,8 +114,23 @@ pub enum Command {
     Tray,
     /// Open the web UI in the browser, starting the server if needed.
     Open,
+    /// Start the tray automatically when you log in.
+    Autostart {
+        #[command(subcommand)]
+        action: Option<AutostartAction>,
+    },
     /// Print shell completions.
     Completions { shell: clap_complete::Shell },
+}
+
+#[derive(Subcommand, Debug, Clone, Copy)]
+pub enum AutostartAction {
+    /// Register `switcheroo tray` to start at login.
+    Enable,
+    /// Remove the registration.
+    Disable,
+    /// Show whether it is registered and where.
+    Status,
 }
 
 pub fn run(cli: Cli) -> i32 {
@@ -261,6 +276,23 @@ fn dispatch(cli: Cli) -> Result<i32> {
         }
         Command::Open => {
             crate::server::open_ui(core).context("opening the web UI")?;
+        }
+        Command::Autostart { action } => {
+            let st = match action.unwrap_or(AutostartAction::Status) {
+                AutostartAction::Enable => core.set_autostart(true)?,
+                AutostartAction::Disable => core.set_autostart(false)?,
+                AutostartAction::Status => core.autostart()?,
+            };
+            if json {
+                output::json(&st)?;
+            } else {
+                println!("Start at login: {}", if st.enabled { "enabled" } else { "disabled" });
+                println!("location: {}", st.location);
+                println!("command:  {}", st.command.join(" "));
+                if st.enabled {
+                    println!("The tray starts at your next login. Run `switcheroo tray` to start it now.");
+                }
+            }
         }
         Command::Completions { .. } => unreachable!(),
     }

@@ -23,6 +23,9 @@ export function useServerEvents() {
         es.addEventListener('settings.changed', () => {
             qc.invalidateQueries({ queryKey: keys.settings })
         })
+        es.addEventListener('autostart.changed', () => {
+            qc.invalidateQueries({ queryKey: keys.autostart })
+        })
         return () => es.close()
     }, [qc])
 }

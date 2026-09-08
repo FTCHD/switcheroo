@@ -83,6 +83,13 @@ export interface Doctor {
     providers: ProviderStatus[]
 }
 
+export interface Autostart {
+    enabled: boolean
+    supported: boolean
+    location: string
+    command: string[]
+}
+
 export interface ServerStatus {
     version: string
     os: string

@@ -81,6 +81,7 @@ pub async fn serve(
         .route("/api/accounts/{provider}/{account}", patch(api::rename).delete(api::remove))
         .route("/api/settings", get(api::get_settings).put(api::put_settings))
         .route("/api/doctor", get(api::doctor))
+        .route("/api/autostart", get(api::get_autostart).put(api::put_autostart))
         .route("/api/events", get(events::sse))
         .fallback(static_files::serve)
         .layer(axum::middleware::from_fn_with_state(state.clone(), auth::guard))

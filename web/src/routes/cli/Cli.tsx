@@ -96,6 +96,14 @@ export function CliPage() {
                     Serve only the web UI, on loopback. <code>--open</code> opens the browser once
                     it is listening. Useful on machines without a tray.
                 </CommandRow>
+                <CommandRow
+                    command="switcheroo autostart enable | disable | status"
+                    example="switcheroo autostart enable"
+                >
+                    Start the tray automatically when you log in: a LaunchAgent on macOS, the
+                    per-user Run key on Windows, an XDG autostart entry on Linux. Nothing is
+                    launched right away; run <code>switcheroo tray</code> for that.
+                </CommandRow>
                 <CommandRow command="switcheroo open" example="switcheroo open">
                     Open the web UI in your browser, starting the server first if nothing is
                     running.

@@ -1,5 +1,11 @@
 import { useEffect, useState } from 'react'
-import { useProviders, useSaveSettings, useSettings } from '@/api/queries'
+import {
+    useAutostart,
+    useProviders,
+    useSaveSettings,
+    useSetAutostart,
+    useSettings,
+} from '@/api/queries'
 import type { Settings } from '@/api/types'
 import { boot } from '@/boot'
 import { Button } from '@/components/ui/button'
@@ -27,6 +33,8 @@ export function SettingsPage() {
     const q = useSettings()
     const providers = useProviders()
     const save = useSaveSettings()
+    const autostart = useAutostart()
+    const setAutostart = useSetAutostart()
     const [draft, setDraft] = useState<Settings | null>(null)
     useEffect(() => {
         if (q.data && !draft) setDraft(q.data)
@@ -113,6 +121,27 @@ export function SettingsPage() {
                             <code className="font-mono text-[12px] text-muted-foreground break-all">
                                 {boot.dataDir}
                             </code>
+                        </PanelRow>
+                    </Panel>
+
+                    <Panel eyebrow="Tray">
+                        <PanelRow
+                            label="Start at login"
+                            description={
+                                autostart.data?.supported === false
+                                    ? 'Not available on this platform.'
+                                    : autostart.data
+                                      ? `Opens the tray when you sign in. Registered at ${autostart.data.location}.`
+                                      : 'Opens the tray when you sign in to this machine.'
+                            }
+                            htmlFor="autostart"
+                        >
+                            <Switch
+                                id="autostart"
+                                checked={autostart.data?.enabled ?? false}
+                                disabled={!autostart.data?.supported || setAutostart.isPending}
+                                onCheckedChange={(v) => setAutostart.mutate(v)}
+                            />
                         </PanelRow>
                     </Panel>
 

@@ -5,6 +5,7 @@ import { toast } from '@/components/ui/toast'
 import { api } from './client'
 import type {
     Account,
+    Autostart,
     Doctor,
     ProviderStatus,
     ServerStatus,
@@ -18,6 +19,7 @@ export const keys = {
     settings: ['settings'] as const,
     doctor: ['doctor'] as const,
     status: ['status'] as const,
+    autostart: ['autostart'] as const,
 }
 
 const notify = {
@@ -158,6 +160,28 @@ export function useRename() {
             ),
         onSuccess: invalidate,
         onError: (e: Error) => notify.error('Could not rename the account', e.message),
+    })
+}
+
+export function useAutostart() {
+    return useQuery({
+        queryKey: keys.autostart,
+        queryFn: () => api.get<Autostart>('/api/autostart'),
+    })
+}
+
+export function useSetAutostart() {
+    const qc = useQueryClient()
+    return useMutation({
+        mutationFn: (enabled: boolean) => api.put<Autostart>('/api/autostart', { enabled }),
+        onSuccess: (a) => {
+            qc.setQueryData(keys.autostart, a)
+            notify.success(
+                a.enabled ? 'Switcheroo starts at login' : 'Switcheroo no longer starts at login',
+                a.enabled ? 'The tray opens the next time you sign in to this machine.' : undefined
+            )
+        },
+        onError: (e: Error) => notify.error('Could not change start at login', e.message),
     })
 }
 

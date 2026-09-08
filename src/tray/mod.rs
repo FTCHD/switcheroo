@@ -22,7 +22,10 @@ use crate::server::{self, ServeOpts};
 pub enum UserEvent {
     Menu(MenuEvent),
     /// Fresh provider statuses (computed off the main thread) → rebuild the menu.
-    Statuses(Vec<ProviderStatus>),
+    Statuses {
+        providers: Vec<ProviderStatus>,
+        autostart: bool,
+    },
     /// Something changed; recompute statuses.
     Dirty,
     Error(String),
@@ -126,10 +129,10 @@ fn run_loop(
                     spawn_status(core.clone(), proxy.clone());
                 }
             }
-            Event::UserEvent(UserEvent::Statuses(statuses)) => {
+            Event::UserEvent(UserEvent::Statuses { providers, autostart }) => {
                 computing = false;
                 let settings = core.settings.read().map(|s| s.clone()).unwrap_or_default();
-                let menu = menu::build(&statuses, &settings, last_error.as_deref());
+                let menu = menu::build(&providers, &settings, autostart, last_error.as_deref());
                 if let Some(t) = &tray {
                     t.set_menu(Some(Box::new(menu)));
                 }
@@ -156,8 +159,9 @@ fn run_loop(
                         let core = core.clone();
                         let proxy = proxy.clone();
                         std::thread::spawn(move || {
-                            let statuses = core.status_all(true);
-                            let _ = proxy.send_event(UserEvent::Statuses(statuses));
+                            let providers = core.status_all(true);
+                            let autostart = core.autostart().map(|a| a.enabled).unwrap_or(false);
+                            let _ = proxy.send_event(UserEvent::Statuses { providers, autostart });
                         });
                     }
                     menu::Action::Quit => {
@@ -210,6 +214,19 @@ fn run_loop(
                             }
                         });
                     }
+                    menu::Action::Autostart { enable } => {
+                        last_error = None;
+                        let core = core.clone();
+                        let proxy = proxy.clone();
+                        std::thread::spawn(move || match core.set_autostart(enable) {
+                            Ok(_) => {
+                                let _ = proxy.send_event(UserEvent::Dirty);
+                            }
+                            Err(e) => {
+                                let _ = proxy.send_event(UserEvent::Error(format!("start at login: {e:#}")));
+                            }
+                        });
+                    }
                     menu::Action::None => {}
                 }
             }
@@ -221,7 +238,8 @@ fn run_loop(
 fn spawn_status(core: Arc<Core>, proxy: EventLoopProxy<UserEvent>) {
     std::thread::spawn(move || {
         let _ = core.reload_state();
-        let statuses = core.status_all(false);
-        let _ = proxy.send_event(UserEvent::Statuses(statuses));
+        let providers = core.status_all(false);
+        let autostart = core.autostart().map(|a| a.enabled).unwrap_or(false);
+        let _ = proxy.send_event(UserEvent::Statuses { providers, autostart });
     });
 }

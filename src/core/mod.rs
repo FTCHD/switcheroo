@@ -2,6 +2,7 @@
 //! settings, and the event bus. CLI, HTTP API and tray never reach around it.
 
 pub mod appdirs;
+pub mod autostart;
 pub mod bus;
 pub mod cx;
 pub mod fsutil;
@@ -139,6 +140,22 @@ impl Core {
         let found = p.detect(&self.cx);
         self.detect_cache.lock().unwrap().insert(id, found.clone());
         found
+    }
+
+    pub fn autostart(&self) -> Result<autostart::Autostart> {
+        autostart::status(&self.dirs.data)
+    }
+
+    pub fn set_autostart(&self, enabled: bool) -> Result<autostart::Autostart> {
+        let st = if enabled { autostart::enable(&self.dirs.data)? } else { autostart::disable(&self.dirs.data)? };
+        self.bus.publish(Event {
+            kind: "autostart.changed".into(),
+            provider: None,
+            account: None,
+            message: None,
+            revision: self.revision(),
+        });
+        Ok(st)
     }
 
     pub(crate) fn persist(
