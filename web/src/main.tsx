@@ -5,6 +5,7 @@ import { createBrowserRouter, RouterProvider } from 'react-router'
 import './index.css'
 import { ThemeProvider } from '@/components/theme-provider'
 import { Toaster } from '@/components/ui/toast'
+import { CliPage } from '@/routes/cli/Cli'
 import { Dashboard } from '@/routes/dashboard/Dashboard'
 import { DoctorPage } from '@/routes/doctor/Doctor'
 import { ProviderPage } from '@/routes/provider/ProviderPage'
@@ -21,6 +22,7 @@ const router = createBrowserRouter([
         children: [
             { path: '/', element: <Dashboard /> },
             { path: '/providers/:id', element: <ProviderPage /> },
+            { path: '/cli', element: <CliPage /> },
             { path: '/settings', element: <SettingsPage /> },
             { path: '/doctor', element: <DoctorPage /> },
         ],
