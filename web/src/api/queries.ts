@@ -11,6 +11,7 @@ import type {
     ServerStatus,
     Settings,
     SwitchOutcome,
+    Usage,
 } from './types'
 
 export const keys = {
@@ -20,6 +21,7 @@ export const keys = {
     doctor: ['doctor'] as const,
     status: ['status'] as const,
     autostart: ['autostart'] as const,
+    usage: (id: string) => ['usage', id] as const,
 }
 
 const notify = {
@@ -160,6 +162,27 @@ export function useRename() {
             ),
         onSuccess: invalidate,
         onError: (e: Error) => notify.error('Could not rename the account', e.message),
+    })
+}
+
+export function useUsage(id: string, enabled: boolean) {
+    return useQuery({
+        queryKey: keys.usage(id),
+        queryFn: () => api.get<Usage | null>(`/api/providers/${encodeURIComponent(id)}/usage`),
+        enabled,
+        staleTime: 60_000,
+        refetchInterval: 120_000,
+        retry: false,
+    })
+}
+
+export function useRefreshUsage(id: string) {
+    const qc = useQueryClient()
+    return useMutation({
+        mutationFn: () =>
+            api.get<Usage | null>(`/api/providers/${encodeURIComponent(id)}/usage?refresh=true`),
+        onSuccess: (u) => qc.setQueryData(keys.usage(id), u),
+        onError: (e: Error) => notify.error('Could not refresh usage', e.message),
     })
 }
 

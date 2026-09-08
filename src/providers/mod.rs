@@ -24,7 +24,7 @@ use std::time::Duration;
 use anyhow::{Result, bail};
 
 use crate::core::cx::Cx;
-use crate::core::model::{Captured, Identity, Installed, ProviderInfo, SecretBlob, Strategy, TierInfo, Warning};
+use crate::core::model::{Captured, Identity, Installed, ProviderInfo, SecretBlob, Strategy, TierInfo, Usage, Warning};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Tier {
@@ -72,6 +72,7 @@ impl ProviderMeta {
             restart_hint: self.restart_hint.map(str::to_string),
             notes: self.notes.to_string(),
             login_command: self.login.iter().map(|s| s.to_string()).collect(),
+            supports_usage: false,
         }
     }
 }
@@ -140,6 +141,25 @@ pub trait Provider: Send + Sync {
 
     fn login_command(&self, _cx: &Cx) -> Vec<String> {
         self.meta().login.iter().map(|s| s.to_string()).collect()
+    }
+
+    // ---- usage -------------------------------------------------------------------------
+
+    fn supports_usage(&self) -> bool {
+        false
+    }
+
+    /// Current usage/quota for the live login, in whatever shape the service reports. May use
+    /// the network. `Ok(None)` when nothing is signed in or the service has no such data.
+    fn usage(&self, _cx: &Cx) -> Result<Option<Usage>> {
+        Ok(None)
+    }
+
+    /// `meta().info()` with the dynamic capability flags filled in.
+    fn info(&self) -> ProviderInfo {
+        let mut info = self.meta().info();
+        info.supports_usage = self.supports_usage();
+        info
     }
 }
 

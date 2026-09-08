@@ -10,6 +10,7 @@ export function useServerEvents() {
         const es = new EventSource('/api/events')
         const refresh = () => {
             qc.invalidateQueries({ queryKey: keys.providers })
+            qc.invalidateQueries({ queryKey: ['usage'] })
         }
         for (const kind of [
             'state.changed',

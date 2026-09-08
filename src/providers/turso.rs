@@ -52,6 +52,7 @@ pub fn provider() -> Box<dyn Provider> {
         },
         verify: None,
         extra_preflight: None,
+        usage: None,
     })
 }
 

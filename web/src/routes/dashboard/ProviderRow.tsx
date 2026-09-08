@@ -7,6 +7,7 @@ import { cn } from '@/lib/ui'
 import { AccountChip } from './AccountChip'
 import { ProviderIcon } from './ProviderIcon'
 import { TierBadge } from './TierBadge'
+import { UsageStrip } from './UsageStrip'
 import { WarningList } from './WarningList'
 
 function LiveDot({ off = false, className }: { off?: boolean; className?: string }) {
@@ -172,6 +173,12 @@ export function ProviderRow({
                             )}
                         </div>
                     </div>
+
+                    <UsageStrip
+                        providerId={info.id}
+                        enabled={live !== null && info.supports_usage}
+                        expanded={!linkTitle}
+                    />
 
                     <div className="mt-5 flex flex-wrap items-center gap-2">
                         {accounts.map((a) => (

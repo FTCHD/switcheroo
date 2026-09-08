@@ -52,6 +52,7 @@ pub fn provider() -> Box<dyn Provider> {
         identity: IdentityResolver::Command(WHOAMI),
         verify: Some(WHOAMI),
         extra_preflight: None,
+        usage: None,
     })
 }
 

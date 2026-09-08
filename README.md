@@ -19,7 +19,7 @@
 
 Work account, personal account, a client's account: most developer CLIs only hold one login at a time, so you end up signing out and back in all day. Switcheroo remembers each login in your OS credential store and puts the one you want back in a second, for Claude Code, Codex, Vercel, Wrangler, npm, Fly.io and more.
 
-It does not create profiles or config directories. It swaps the CLI's **live login**, so every terminal, editor integration and script that uses that CLI follows along.
+It does not create profiles or config directories. It swaps the CLI's **live login**, so every terminal, editor integration and script that uses that CLI follows along. For CLIs that report it (Claude Code, Codex, GitHub CLI) it also shows how much of each account's allowance is used and when it resets, so you know which account to switch to.
 
 ```sh
 switcheroo save claude-code                 # remember the login you have now
@@ -43,20 +43,6 @@ Windows (PowerShell):
 ```powershell
 irm https://raw.githubusercontent.com/ftchd/switcheroo/main/install.ps1 | iex
 ```
-
-Both scripts pick the binary for your machine, verify it against the release's `SHA256SUMS`, and put it on your `PATH`: `/usr/local/bin` or `~/.local/bin` on macOS and Linux, `%LOCALAPPDATA%\Programs\switcheroo` on Windows. Set `SWITCHEROO_VERSION=v0.1.0` to pin a version or `SWITCHEROO_INSTALL_DIR` to choose the folder. Because the download is not done by a browser, macOS attaches no quarantine attribute and Windows gets no mark-of-the-web, so neither Gatekeeper nor SmartScreen gets in the way.
-
-Prefer to do it by hand? Grab the asset from the [latest release](https://github.com/ftchd/switcheroo/releases/latest), make it executable, and put it on your `PATH`:
-
-| Platform | Asset |
-|---|---|
-| macOS, Apple silicon | `switcheroo-macos-aarch64` |
-| macOS, Intel | `switcheroo-macos-x86_64` |
-| Linux, x86_64 | `switcheroo-linux-x86_64` |
-| Linux, arm64 | `switcheroo-linux-aarch64` |
-| Windows, x86_64 | `switcheroo-windows-x86_64.exe` |
-
-A binary saved by a browser on macOS carries the quarantine attribute and Gatekeeper will refuse it until you clear it: `xattr -d com.apple.quarantine switcheroo`. Linux needs GTK 3 and an AppIndicator library (`libayatana-appindicator3`) for the tray; without them `switcheroo serve` still gives you the web UI.
 
 To build from source you need Rust and Node:
 
@@ -114,6 +100,7 @@ Before switching, Switcheroo warns about anything that would make it a no-op: en
 | `login <provider> [--label NAME]` | Run the CLI's sign-in here, then remember the result |
 | `use <provider> [account]` | Switch; account by email, label or unique fragment, picker if omitted |
 | `list [provider]` · `rename` · `remove` | Manage remembered accounts |
+| `usage [provider] [--refresh]` | Used quota and reset times for signed-in accounts |
 | `doctor` · `providers` | Diagnostics and the provider catalogue |
 | `tray` · `serve [--bind]` · `open` | Run the tray, the web server, or open the UI |
 | `autostart enable\|disable\|status` | Start the tray at login |

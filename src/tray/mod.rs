@@ -16,7 +16,7 @@ use tray_icon::menu::MenuEvent;
 use tray_icon::{TrayIcon, TrayIconBuilder};
 
 use crate::core::Core;
-use crate::core::model::ProviderStatus;
+use crate::core::model::{ProviderStatus, Usage};
 use crate::server::{self, ServeOpts};
 
 pub enum UserEvent {
@@ -25,6 +25,7 @@ pub enum UserEvent {
     Statuses {
         providers: Vec<ProviderStatus>,
         autostart: bool,
+        usage: std::collections::HashMap<String, Usage>,
     },
     /// Something changed; recompute statuses.
     Dirty,
@@ -129,10 +130,10 @@ fn run_loop(
                     spawn_status(core.clone(), proxy.clone());
                 }
             }
-            Event::UserEvent(UserEvent::Statuses { providers, autostart }) => {
+            Event::UserEvent(UserEvent::Statuses { providers, autostart, usage }) => {
                 computing = false;
                 let settings = core.settings.read().map(|s| s.clone()).unwrap_or_default();
-                let menu = menu::build(&providers, &settings, autostart, last_error.as_deref());
+                let menu = menu::build(&providers, &settings, autostart, &usage, last_error.as_deref());
                 if let Some(t) = &tray {
                     t.set_menu(Some(Box::new(menu)));
                 }
@@ -161,7 +162,8 @@ fn run_loop(
                         std::thread::spawn(move || {
                             let providers = core.status_all(true);
                             let autostart = core.autostart().map(|a| a.enabled).unwrap_or(false);
-                            let _ = proxy.send_event(UserEvent::Statuses { providers, autostart });
+                            let usage = collect_usage(&core, &providers, true);
+                            let _ = proxy.send_event(UserEvent::Statuses { providers, autostart, usage });
                         });
                     }
                     menu::Action::Quit => {
@@ -240,6 +242,26 @@ fn spawn_status(core: Arc<Core>, proxy: EventLoopProxy<UserEvent>) {
         let _ = core.reload_state();
         let providers = core.status_all(false);
         let autostart = core.autostart().map(|a| a.enabled).unwrap_or(false);
-        let _ = proxy.send_event(UserEvent::Statuses { providers, autostart });
+        let usage = collect_usage(&core, &providers, false);
+        let _ = proxy.send_event(UserEvent::Statuses { providers, autostart, usage });
     });
+}
+
+/// Usage for signed-in providers that report it; cached by the core, failures omitted.
+fn collect_usage(core: &Core, statuses: &[ProviderStatus], refresh: bool) -> std::collections::HashMap<String, Usage> {
+    let mut out = std::collections::HashMap::new();
+    for s in statuses {
+        if s.live.is_none() || !s.info.supports_usage {
+            continue;
+        }
+        let Ok(p) = core.provider(&s.info.id) else { continue };
+        match core.usage(p, refresh) {
+            Ok(Some(u)) => {
+                out.insert(s.info.id.clone(), u);
+            }
+            Ok(None) => {}
+            Err(e) => log::warn!("usage for {}: {e:#}", s.info.id),
+        }
+    }
+    out
 }

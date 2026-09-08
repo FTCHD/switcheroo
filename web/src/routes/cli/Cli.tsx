@@ -52,6 +52,17 @@ export function CliPage() {
                 </CommandRow>
             </Panel>
 
+            <Panel eyebrow="Usage">
+                <CommandRow
+                    command="switcheroo usage [provider] [--refresh]"
+                    example={`switcheroo usage ${pid}`}
+                >
+                    How much of each signed-in account's allowance is used and when it resets, for
+                    the CLIs that report it (Claude Code, Codex, GitHub CLI). Answers are cached for
+                    a minute; <code>--refresh</code> asks again.
+                </CommandRow>
+            </Panel>
+
             <Panel eyebrow="Remembered accounts">
                 <CommandRow command="switcheroo list [provider]" example={`switcheroo list ${pid}`}>
                     List remembered accounts, for one CLI or all of them, with which one is active

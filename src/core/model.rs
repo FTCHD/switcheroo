@@ -40,6 +40,9 @@ pub struct ProviderInfo {
     pub restart_hint: Option<String>,
     pub notes: String,
     pub login_command: Vec<String>,
+    /// Whether `usage` may return something for this provider.
+    #[serde(default)]
+    pub supports_usage: bool,
 }
 
 /// Who is logged in. `id` is the stable per-provider key (lower-cased email or login).
@@ -188,6 +191,125 @@ pub struct ProviderStatus {
     pub live_checked_at: Option<DateTime<Utc>>,
 }
 
+/// Usage/quota as reported by a provider. Providers compose these primitives however their
+/// service measures things; every surface renders them generically.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Usage {
+    pub items: Vec<UsageItem>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+    pub fetched_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct UsageItem {
+    pub label: String,
+    #[serde(flatten)]
+    pub kind: UsageKind,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+pub enum UsageKind {
+    /// Share of a limit already used, 0–100.
+    Percent {
+        used: f64,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        resets_at: Option<DateTime<Utc>>,
+    },
+    /// Absolute used/limit in some unit.
+    Gauge {
+        used: f64,
+        limit: f64,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        unit: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        resets_at: Option<DateTime<Utc>>,
+    },
+    /// Anything else, already formatted by the provider.
+    Text { value: String },
+}
+
+impl UsageItem {
+    pub fn percent(label: impl Into<String>, used: f64, resets_at: Option<DateTime<Utc>>) -> Self {
+        UsageItem { label: label.into(), kind: UsageKind::Percent { used, resets_at }, detail: None }
+    }
+    pub fn gauge(
+        label: impl Into<String>,
+        used: f64,
+        limit: f64,
+        unit: Option<&str>,
+        resets_at: Option<DateTime<Utc>>,
+    ) -> Self {
+        UsageItem {
+            label: label.into(),
+            kind: UsageKind::Gauge { used, limit, unit: unit.map(str::to_string), resets_at },
+            detail: None,
+        }
+    }
+    pub fn text(label: impl Into<String>, value: impl Into<String>) -> Self {
+        UsageItem { label: label.into(), kind: UsageKind::Text { value: value.into() }, detail: None }
+    }
+    /// The value as one short string ("42% used", "123 / 5,000 requests", "Max").
+    pub fn value_text(&self) -> String {
+        match &self.kind {
+            UsageKind::Percent { used, .. } => format!("{}% used", used.round() as i64),
+            UsageKind::Gauge { used, limit, unit, .. } => match unit {
+                Some(u) => format!("{} / {} {u}", thousands(*used), thousands(*limit)),
+                None => format!("{} / {}", thousands(*used), thousands(*limit)),
+            },
+            UsageKind::Text { value } => value.clone(),
+        }
+    }
+
+    pub fn resets_at(&self) -> Option<DateTime<Utc>> {
+        match &self.kind {
+            UsageKind::Percent { resets_at, .. } | UsageKind::Gauge { resets_at, .. } => *resets_at,
+            UsageKind::Text { .. } => None,
+        }
+    }
+
+    /// "Session (5h): 42% used · resets in 2h 10m" for menus and tables.
+    pub fn summary(&self) -> String {
+        let mut s = format!("{}: {}", self.label, self.value_text());
+        if let Some(at) = self.resets_at() {
+            s.push_str(&format!(" · resets in {}", humanize_until(at)));
+        }
+        s
+    }
+}
+
+pub fn thousands(n: f64) -> String {
+    let whole = n.round() as i64;
+    let digits = whole.abs().to_string();
+    let mut out = String::new();
+    for (i, ch) in digits.chars().enumerate() {
+        if i > 0 && (digits.len() - i).is_multiple_of(3) {
+            out.push(',');
+        }
+        out.push(ch);
+    }
+    if whole < 0 { format!("-{out}") } else { out }
+}
+
+/// "2h 30m", "45m", "3d 4h", or "now" for past instants.
+pub fn humanize_until(at: DateTime<Utc>) -> String {
+    let secs = (at - Utc::now()).num_seconds();
+    if secs <= 0 {
+        return "now".to_string();
+    }
+    let (d, h, m) = (secs / 86_400, (secs % 86_400) / 3600, (secs % 3600) / 60);
+    if d > 0 {
+        format!("{d}d {h}h")
+    } else if h > 0 {
+        format!("{h}h {m}m")
+    } else {
+        format!("{}m", m.max(1))
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SwitchOutcome {
     pub provider: String,
@@ -207,6 +329,19 @@ mod tests {
         assert_eq!(id.id, "jane@example.com");
         assert_eq!(id.label, "  Jane@Example.COM ");
         assert_eq!(id.email.as_deref(), Some("  Jane@Example.COM "));
+    }
+
+    #[test]
+    fn usage_summaries() {
+        assert_eq!(thousands(1234567.0), "1,234,567");
+        assert_eq!(thousands(999.0), "999");
+        let p = UsageItem::percent("Weekly", 12.4, None);
+        assert_eq!(p.summary(), "Weekly: 12% used");
+        let g =
+            UsageItem::gauge("REST", 123.0, 5000.0, Some("requests"), Some(Utc::now() + chrono::Duration::minutes(95)));
+        let summary = g.summary();
+        assert!(summary.starts_with("REST: 123 / 5,000 requests · resets in 1h 3"), "{summary}");
+        assert_eq!(UsageItem::text("Plan", "Max").summary(), "Plan: Max");
     }
 
     #[test]

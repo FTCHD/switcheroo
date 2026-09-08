@@ -3,7 +3,9 @@
 
 use tray_icon::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 
-use crate::core::model::{ProviderStatus, TierInfo};
+use std::collections::HashMap;
+
+use crate::core::model::{ProviderStatus, TierInfo, Usage};
 use crate::core::settings::Settings;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -54,7 +56,13 @@ pub fn loading_menu() -> Menu {
     menu
 }
 
-pub fn build(statuses: &[ProviderStatus], settings: &Settings, autostart: bool, last_error: Option<&str>) -> Menu {
+pub fn build(
+    statuses: &[ProviderStatus],
+    settings: &Settings,
+    autostart: bool,
+    usage: &HashMap<String, Usage>,
+    last_error: Option<&str>,
+) -> Menu {
     let menu = Menu::new();
     if let Some(err) = last_error {
         let _ = menu.append(&MenuItem::with_id("noop", format!("⚠ {}", truncate(err, 80)), false, None));
@@ -75,6 +83,12 @@ pub fn build(statuses: &[ProviderStatus], settings: &Settings, autostart: bool, 
             None => format!("{} — not logged in", s.info.name),
         };
         let sub = Submenu::new(title, true);
+        if let Some(u) = usage.get(&s.info.id) {
+            for item in &u.items {
+                let _ = sub.append(&MenuItem::with_id("noop", item.summary(), false, None));
+            }
+            let _ = sub.append(&PredefinedMenuItem::separator());
+        }
         if s.accounts.is_empty() {
             let _ = sub.append(&MenuItem::with_id("noop", "No saved accounts", false, None));
         }

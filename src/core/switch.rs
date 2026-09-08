@@ -108,7 +108,7 @@ impl Core {
         }
         let active_account = live.as_ref().and_then(|l| accounts.iter().find(|a| a.id == l.id).map(|a| a.id.clone()));
         ProviderStatus {
-            info: meta.info(),
+            info: p.info(),
             installed,
             live,
             active_account,
@@ -363,6 +363,7 @@ impl Core {
             st.live_cache.remove(meta.id);
         }
         self.persist(&mut st, "switch.done", Some(meta.id), Some(&account.id))?;
+        self.invalidate_usage(meta.id);
         if let Some(hint) = meta.restart_hint {
             warnings.push(Warning::info("restart", hint));
         }

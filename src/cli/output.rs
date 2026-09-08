@@ -3,7 +3,7 @@
 use anyhow::{Result, bail};
 use comfy_table::{Cell, ContentArrangement, Table, presets::UTF8_FULL_CONDENSED};
 
-use crate::core::model::{ProviderInfo, ProviderStatus, Severity, TierInfo, Warning};
+use crate::core::model::{ProviderInfo, ProviderStatus, Severity, TierInfo, Usage, Warning, humanize_until};
 use crate::core::switch::Doctor;
 use crate::core::{Core, Strategy};
 use crate::providers::Provider;
@@ -115,6 +115,40 @@ pub fn accounts_table(statuses: &[ProviderStatus]) {
     }
     println!("{t}");
 }
+
+pub fn usage_table(rows: &[(String, anyhow::Result<Option<Usage>>)]) {
+    let mut t = table();
+    t.set_header(["Provider", "Meter", "Used", "Resets in"]);
+    let mut notes = Vec::new();
+    for (name, r) in rows {
+        match r {
+            Ok(Some(u)) => {
+                for item in &u.items {
+                    t.add_row([
+                        name.clone(),
+                        item.label.clone(),
+                        item.value_text(),
+                        item.resets_at().map(humanize_until).unwrap_or_default(),
+                    ]);
+                }
+                if let Some(n) = &u.note {
+                    notes.push(format!("{name}: {n}"));
+                }
+            }
+            Ok(None) => t.add_row([name.clone(), "—".into(), "nothing signed in".into(), String::new()]).pipe_unit(),
+            Err(e) => t.add_row([name.clone(), "—".into(), format!("unavailable: {e:#}"), String::new()]).pipe_unit(),
+        }
+    }
+    println!("{t}");
+    for n in notes {
+        println!("  note: {n}");
+    }
+}
+
+trait PipeUnit {
+    fn pipe_unit(&mut self) {}
+}
+impl PipeUnit for Table {}
 
 pub fn print_warnings(warnings: &[Warning]) {
     for w in warnings {

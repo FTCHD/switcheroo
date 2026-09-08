@@ -13,6 +13,7 @@ pub mod settings;
 pub mod state;
 pub mod switch;
 pub mod terminal;
+pub mod usage;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -40,6 +41,7 @@ pub struct Core {
     pub providers: Vec<Box<dyn Provider>>,
     pub bus: Bus,
     detect_cache: Mutex<HashMap<&'static str, Option<Installed>>>,
+    pub(crate) usage_cache: Mutex<HashMap<&'static str, (std::time::Instant, Usage)>>,
 }
 
 #[derive(Default)]
@@ -71,6 +73,7 @@ impl Core {
             providers,
             bus: Bus::new(),
             detect_cache: Mutex::new(HashMap::new()),
+            usage_cache: Mutex::new(HashMap::new()),
         }))
     }
 

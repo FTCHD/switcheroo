@@ -17,6 +17,7 @@ export interface ProviderInfo {
     restart_hint: string | null
     notes: string
     login_command: string[]
+    supports_usage: boolean
 }
 
 export interface Identity {
@@ -81,6 +82,21 @@ export interface Doctor {
     vault_error: string | null
     path: string[]
     providers: ProviderStatus[]
+}
+
+export type UsageItem = {
+    label: string
+    detail?: string
+} & (
+    | { kind: 'percent'; used: number; resets_at?: string }
+    | { kind: 'gauge'; used: number; limit: number; unit?: string; resets_at?: string }
+    | { kind: 'text'; value: string }
+)
+
+export interface Usage {
+    items: UsageItem[]
+    note?: string
+    fetched_at: string
 }
 
 export interface Autostart {

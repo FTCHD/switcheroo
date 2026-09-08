@@ -78,6 +78,7 @@ pub async fn serve(
         .route("/api/providers/{id}/use", post(api::use_account))
         .route("/api/providers/{id}/login", post(api::login))
         .route("/api/providers/{id}/refresh", post(api::refresh))
+        .route("/api/providers/{id}/usage", get(api::usage))
         .route("/api/accounts/{provider}/{account}", patch(api::rename).delete(api::remove))
         .route("/api/settings", get(api::get_settings).put(api::put_settings))
         .route("/api/doctor", get(api::doctor))

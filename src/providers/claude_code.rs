@@ -5,13 +5,18 @@
 
 use std::path::PathBuf;
 
+use anyhow::{Context, Result, bail};
+use chrono::{DateTime, Utc};
+use serde_json::Value;
+
 use super::identity::{Cmd, IdentityResolver, Parse};
 use super::slot_provider::SlotProvider;
 use super::slots::{FileSlot, JsonKeysSlot, Slot};
+use super::util::http;
 use super::util::text::tilde;
 use super::{Provider, ProviderMeta, Tier};
 use crate::core::cx::{Cx, Os};
-use crate::core::model::{Strategy, Warning};
+use crate::core::model::{Strategy, Usage, UsageItem, Warning};
 
 #[cfg(target_os = "macos")]
 pub const KEYCHAIN_SERVICE: &str = "Claude Code-credentials";
@@ -68,6 +73,106 @@ fn preflight(cx: &Cx) -> Vec<Warning> {
     w
 }
 
+// Claude's OAuth usage endpoint is internal (the same one the Claude Code CLI uses); best effort.
+const USAGE_URLS: &[&str] = &["https://api.anthropic.com/oauth/usage", "https://api.anthropic.com/api/oauth/usage"];
+const USAGE_UA: &str = "claude-code/2.1.11";
+
+fn usage(_cx: &Cx, slots: &[Option<Vec<u8>>]) -> Result<Option<Usage>> {
+    let Some(bytes) = slots.first().and_then(|s| s.as_ref()) else { return Ok(None) };
+    let creds: Value = serde_json::from_slice(bytes).context("credential is not JSON")?;
+    let Some(token) = creds.pointer("/claudeAiOauth/accessToken").and_then(Value::as_str) else { return Ok(None) };
+    let plan = creds.pointer("/claudeAiOauth/subscriptionType").and_then(Value::as_str).map(str::to_string);
+    let auth = format!("Bearer {token}");
+    let headers = [
+        ("Authorization", auth.as_str()),
+        ("anthropic-beta", "oauth-2025-04-20"),
+        ("Accept", "application/json"),
+        ("User-Agent", USAGE_UA),
+    ];
+    let mut last = None;
+    for url in USAGE_URLS {
+        let resp = http::get_json(url, &headers)?;
+        match resp.status {
+            404 => {
+                last = Some(format!("HTTP 404 at {url}"));
+                continue;
+            }
+            401 | 403 => bail!("Claude rejected the token; sign in again"),
+            _ => {}
+        }
+        let json = http::ensure_ok(&resp, "Claude usage")?;
+        return Ok(Some(parse_claude_usage(json, plan.as_deref())));
+    }
+    bail!("Claude usage endpoint not found ({})", last.unwrap_or_default())
+}
+
+fn iso(v: Option<&Value>) -> Option<DateTime<Utc>> {
+    v.and_then(Value::as_str).and_then(|s| DateTime::parse_from_rfc3339(s).ok()).map(|d| d.with_timezone(&Utc))
+}
+
+fn window_label(key: &str) -> String {
+    let (base, rest) = if let Some(r) = key.strip_prefix("seven_day") {
+        ("Weekly", r)
+    } else if let Some(r) = key.strip_prefix("five_hour") {
+        ("Session (5h)", r)
+    } else {
+        ("", key)
+    };
+    let suffix: Vec<String> = rest
+        .split('_')
+        .filter(|s| !s.is_empty())
+        .map(|w| {
+            let mut c = w.chars();
+            match c.next() {
+                Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+                None => String::new(),
+            }
+        })
+        .collect();
+    match (base.is_empty(), suffix.is_empty()) {
+        (false, true) => base.to_string(),
+        (false, false) => format!("{base} · {}", suffix.join(" ")),
+        (true, _) => suffix.join(" "),
+    }
+}
+
+/// `five_hour`/`seven_day` (and any other window object with a `utilization`) → percent meters.
+pub fn parse_claude_usage(v: &Value, plan: Option<&str>) -> Usage {
+    let mut items = Vec::new();
+    let mut seen = Vec::new();
+    for key in ["five_hour", "seven_day"] {
+        if let Some(w) = v.get(key).filter(|w| w.is_object()) {
+            seen.push(key.to_string());
+            if let Some(used) = w.get("utilization").and_then(Value::as_f64) {
+                items.push(UsageItem::percent(window_label(key), used, iso(w.get("resets_at"))));
+            }
+        }
+    }
+    if let Some(obj) = v.as_object() {
+        for (key, w) in obj {
+            if seen.contains(key) || !w.is_object() {
+                continue;
+            }
+            if let Some(used) = w.get("utilization").and_then(Value::as_f64) {
+                items.push(UsageItem::percent(window_label(key), used, iso(w.get("resets_at"))));
+            }
+        }
+    }
+    if let Some(p) = plan.filter(|p| !p.is_empty()) {
+        let mut c = p.chars();
+        let pretty = match c.next() {
+            Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+            None => String::new(),
+        };
+        items.push(UsageItem::text("Plan", pretty));
+    }
+    Usage {
+        items,
+        note: Some("Rolling limits as reported by Claude; the weekly window is shared with claude.ai.".into()),
+        fetched_at: Utc::now(),
+    }
+}
+
 pub fn provider() -> Box<dyn Provider> {
     Box::new(SlotProvider {
         meta: ProviderMeta {
@@ -108,6 +213,7 @@ pub fn provider() -> Box<dyn Provider> {
             extra: &[],
         }),
         extra_preflight: Some(preflight),
+        usage: Some(usage),
     })
 }
 
@@ -153,6 +259,31 @@ mod tests {
         let creds = std::fs::read_to_string(dir.path().join(".claude/.credentials.json")).unwrap();
         assert!(creds.contains("sk-ant-oat01-A"));
         assert_eq!(p.slot_descriptions(&cx).len(), 2);
+    }
+
+    #[test]
+    fn parses_usage_windows_and_extra_models() {
+        let v: Value = serde_json::from_str(
+            r#"{"five_hour":{"utilization":42.5,"resets_at":"2026-09-08T22:00:00Z"},
+                "seven_day":{"utilization":12,"resets_at":"2026-09-12T00:00:00+00:00"},
+                "seven_day_opus":{"utilization":3.2,"resets_at":"2026-09-12T00:00:00Z"},
+                "extra_usage":{"enabled":false}}"#,
+        )
+        .unwrap();
+        let u = parse_claude_usage(&v, Some("max"));
+        let labels: Vec<&str> = u.items.iter().map(|i| i.label.as_str()).collect();
+        assert_eq!(labels, ["Session (5h)", "Weekly", "Weekly · Opus", "Plan"]);
+        match &u.items[0].kind {
+            crate::core::model::UsageKind::Percent { used, resets_at } => {
+                assert_eq!(*used, 42.5);
+                assert!(resets_at.is_some());
+            }
+            other => panic!("unexpected {other:?}"),
+        }
+        match &u.items[3].kind {
+            crate::core::model::UsageKind::Text { value } => assert_eq!(value, "Max"),
+            other => panic!("unexpected {other:?}"),
+        }
     }
 
     #[test]

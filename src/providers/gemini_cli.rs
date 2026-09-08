@@ -38,6 +38,7 @@ pub fn provider() -> Box<dyn Provider> {
         identity: IdentityResolver::JsonPointer { slot: 1, pointer: "/active", is_email: true, extra: &[] },
         verify: None,
         extra_preflight: None,
+        usage: None,
     })
 }
 

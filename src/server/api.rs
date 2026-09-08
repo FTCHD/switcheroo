@@ -108,6 +108,22 @@ pub async fn login(State(st): State<AppState>, Path(id): Path<String>) -> ApiRes
     .await
 }
 
+/// Usage for one provider: `null` when nothing is signed in, 502 when the fetch failed.
+pub async fn usage(State(st): State<AppState>, Path(id): Path<String>, Query(q): Query<RefreshQuery>) -> ApiResult {
+    let core = st.core.clone();
+    let result = tokio::task::spawn_blocking(move || {
+        let p = core.provider(&id)?;
+        core.usage(p, q.refresh)
+    })
+    .await
+    .map_err(|e| ApiError(anyhow::anyhow!("task failed: {e}")))?;
+    match result {
+        Ok(usage) => Ok(Json(usage).into_response()),
+        Err(e) if format!("{e}").starts_with("unknown provider") => Err(ApiError(e)),
+        Err(e) => Ok((StatusCode::BAD_GATEWAY, Json(serde_json::json!({ "error": format!("{e:#}") }))).into_response()),
+    }
+}
+
 pub async fn refresh(State(st): State<AppState>, Path(id): Path<String>) -> ApiResult {
     blocking(st.core, move |c| Ok(c.status(c.provider(&id)?, true))).await
 }

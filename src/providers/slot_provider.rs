@@ -10,7 +10,10 @@ use super::slots::Slot;
 use super::util::fp::fnv1a;
 use super::{Provider, ProviderMeta, default_preflight};
 use crate::core::cx::Cx;
-use crate::core::model::{Captured, Identity, SecretBlob, Warning};
+use crate::core::model::{Captured, Identity, SecretBlob, Usage, Warning};
+
+/// Provider-specific usage fetch, given the live slot contents (so it can read its own token).
+pub type UsageFn = fn(&Cx, &[Option<Vec<u8>>]) -> Result<Option<Usage>>;
 
 pub struct SlotProvider {
     pub meta: ProviderMeta,
@@ -20,6 +23,7 @@ pub struct SlotProvider {
     /// Optional post-switch check via the CLI itself.
     pub verify: Option<Cmd>,
     pub extra_preflight: Option<fn(&Cx) -> Vec<Warning>>,
+    pub usage: Option<UsageFn>,
 }
 
 const BLOB_VERSION: u32 = 1;
@@ -135,6 +139,20 @@ impl Provider for SlotProvider {
         Ok(())
     }
 
+    fn supports_usage(&self) -> bool {
+        self.usage.is_some()
+    }
+
+    fn usage(&self, cx: &Cx) -> Result<Option<Usage>> {
+        let Some(f) = self.usage else { return Ok(None) };
+        let slots = (self.slots)(cx);
+        let data = self.read_all(&slots)?;
+        if data.iter().all(Option::is_none) {
+            return Ok(None);
+        }
+        f(cx, &data)
+    }
+
     fn verify(&self, cx: &Cx, expected: &Identity) -> Result<bool> {
         match &self.verify {
             Some(cmd) => Ok(run_cmd(cx, cmd)?.map(|l| l.same_as(expected)).unwrap_or(false)),
@@ -178,6 +196,7 @@ pub mod testing {
             identity: IdentityResolver::JsonPointer { slot: 0, pointer: "/user", is_email: true, extra: &[] },
             verify: None,
             extra_preflight: None,
+            usage: None,
         }
     }
 }

@@ -96,6 +96,13 @@ pub enum Command {
     },
     /// Change a saved account's label.
     Rename { provider: String, account: String, label: String },
+    /// Usage and remaining quota for the signed-in account of each CLI that reports it.
+    Usage {
+        provider: Option<String>,
+        /// Ask the service again instead of using the cached answer (cached for a minute).
+        #[arg(long)]
+        refresh: bool,
+    },
     /// Diagnostics: detection, vault health, shadowing env vars, running CLIs.
     Doctor,
     /// Run the web UI server (loopback only).
@@ -177,7 +184,7 @@ fn dispatch(cli: Cli) -> Result<i32> {
             }
         }
         Command::Providers => {
-            let infos: Vec<_> = core.providers.iter().map(|p| p.meta().info()).collect();
+            let infos: Vec<_> = core.providers.iter().map(|p| p.info()).collect();
             if json {
                 output::json(&infos)?;
             } else {
@@ -256,6 +263,27 @@ fn dispatch(cli: Cli) -> Result<i32> {
                 output::json(&acct)?;
             } else {
                 println!("{} → {} is now \"{}\"", acct.provider, acct.id, acct.label);
+            }
+        }
+        Command::Usage { provider, refresh } => {
+            let selected: Vec<&dyn crate::providers::Provider> = match &provider {
+                Some(p) => vec![core.provider(p)?],
+                None => core.providers.iter().map(|p| p.as_ref()).filter(|p| p.supports_usage()).collect(),
+            };
+            let rows: Vec<(String, anyhow::Result<Option<crate::core::model::Usage>>)> =
+                selected.iter().map(|p| (p.meta().name.to_string(), core.usage(*p, refresh))).collect();
+            if json {
+                let out: Vec<serde_json::Value> = selected
+                    .iter()
+                    .zip(&rows)
+                    .map(|(p, (_, r))| match r {
+                        Ok(u) => serde_json::json!({ "provider": p.meta().id, "usage": u }),
+                        Err(e) => serde_json::json!({ "provider": p.meta().id, "error": format!("{e:#}") }),
+                    })
+                    .collect();
+                output::json(&out)?;
+            } else {
+                output::usage_table(&rows);
             }
         }
         Command::Doctor => {
