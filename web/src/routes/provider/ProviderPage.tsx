@@ -56,13 +56,13 @@ export function ProviderPage() {
                     ) : (
                         <div className="panel mb-8 px-7 py-6">
                             <p className="font-heading text-lg font-medium">Not on this machine</p>
-                            <p className="mt-1 max-w-xl text-sm text-muted-foreground text-pretty">
+                            <p className="mt-1 text-sm text-muted-foreground text-pretty">
                                 Switcheroo looked for{' '}
                                 <code className="font-mono">{q.data.info.binaries.join(', ')}</code>{' '}
                                 on PATH and found nothing. Install the CLI and sign in, then this
                                 page fills in.
                             </p>
-                            <p className="mt-3 max-w-xl text-sm text-muted-foreground text-pretty">
+                            <p className="mt-3 text-sm text-muted-foreground text-pretty">
                                 Installed only inside a project, for example in a repo's{' '}
                                 <code className="font-mono">node_modules/.bin</code>? That copy is
                                 not visible from here even though its login is global. Install it
