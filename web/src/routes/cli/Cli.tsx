@@ -17,10 +17,7 @@ export function CliPage() {
 
     return (
         <>
-            <PageHeader
-                title="Command line"
-                description="Everything the web UI and tray do is available as switcheroo commands, which makes it easy to script or use from the terminal you are already in. Add --json to any command for machine-readable output."
-            />
+            <PageHeader title="Command line" />
 
             <Panel eyebrow="Everyday">
                 <CommandRow command="switcheroo [status] [--refresh]">
