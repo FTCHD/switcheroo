@@ -110,17 +110,10 @@ fn iso(v: Option<&Value>) -> Option<DateTime<Utc>> {
     v.and_then(Value::as_str).and_then(|s| DateTime::parse_from_rfc3339(s).ok()).map(|d| d.with_timezone(&Utc))
 }
 
-fn window_label(key: &str) -> String {
-    let (base, rest) = if let Some(r) = key.strip_prefix("seven_day") {
-        ("Weekly", r)
-    } else if let Some(r) = key.strip_prefix("five_hour") {
-        ("Session (5h)", r)
-    } else {
-        ("", key)
-    };
-    let suffix: Vec<String> = rest
+fn title_case(words: &str) -> String {
+    words
         .split('_')
-        .filter(|s| !s.is_empty())
+        .filter(|w| !w.is_empty())
         .map(|w| {
             let mut c = w.chars();
             match c.next() {
@@ -128,47 +121,77 @@ fn window_label(key: &str) -> String {
                 None => String::new(),
             }
         })
-        .collect();
-    match (base.is_empty(), suffix.is_empty()) {
-        (false, true) => base.to_string(),
-        (false, false) => format!("{base} · {}", suffix.join(" ")),
-        (true, _) => suffix.join(" "),
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// Label for an entry of the structured `limits` array.
+fn limit_label(kind: &str, scope: Option<&Value>) -> String {
+    let scoped = scope
+        .and_then(|s| s.pointer("/model/display_name").or_else(|| s.get("surface")))
+        .and_then(Value::as_str)
+        .filter(|n| !n.is_empty());
+    let base = match kind {
+        "session" => "Session (5h)".to_string(),
+        "weekly_all" => "Weekly".to_string(),
+        "weekly_scoped" => "Weekly".to_string(),
+        other => title_case(other.trim_end_matches("_all").trim_end_matches("_scoped")),
+    };
+    match scoped {
+        Some(name) => format!("{base} · {name}"),
+        None => base,
     }
 }
 
-/// `five_hour`/`seven_day` (and any other window object with a `utilization`) → percent meters.
+/// Anthropic's usage response. Prefer the structured `limits` array (session, weekly, per-model
+/// weekly); fall back to the older `five_hour` / `seven_day` objects. Everything else in the
+/// payload (internal feature buckets with codename keys) is ignored on purpose.
 pub fn parse_claude_usage(v: &Value, plan: Option<&str>) -> Usage {
     let mut items = Vec::new();
-    let mut seen = Vec::new();
-    for key in ["five_hour", "seven_day"] {
-        if let Some(w) = v.get(key).filter(|w| w.is_object()) {
-            seen.push(key.to_string());
-            if let Some(used) = w.get("utilization").and_then(Value::as_f64) {
-                items.push(UsageItem::percent(window_label(key), used, iso(w.get("resets_at"))));
+    if let Some(limits) = v.get("limits").and_then(Value::as_array).filter(|l| !l.is_empty()) {
+        for l in limits {
+            let (Some(kind), Some(pct)) =
+                (l.get("kind").and_then(Value::as_str), l.get("percent").and_then(Value::as_f64))
+            else {
+                continue;
+            };
+            let mut item = UsageItem::percent(limit_label(kind, l.get("scope")), pct, iso(l.get("resets_at")));
+            if l.get("is_active").and_then(Value::as_bool) == Some(true) && pct >= 100.0 {
+                item.detail = Some("limit reached".to_string());
+            }
+            items.push(item);
+        }
+    } else {
+        for (key, label) in [("five_hour", "Session (5h)"), ("seven_day", "Weekly")] {
+            if let Some(w) = v.get(key).filter(|w| w.is_object())
+                && let Some(used) = w.get("utilization").and_then(Value::as_f64)
+            {
+                items.push(UsageItem::percent(label, used, iso(w.get("resets_at"))));
+            }
+        }
+        for model in ["opus", "sonnet"] {
+            if let Some(w) = v.get(format!("seven_day_{model}")).filter(|w| w.is_object())
+                && let Some(used) = w.get("utilization").and_then(Value::as_f64)
+            {
+                items.push(UsageItem::percent(
+                    format!("Weekly · {}", title_case(model)),
+                    used,
+                    iso(w.get("resets_at")),
+                ));
             }
         }
     }
-    if let Some(obj) = v.as_object() {
-        for (key, w) in obj {
-            if seen.contains(key) || !w.is_object() {
-                continue;
-            }
-            if let Some(used) = w.get("utilization").and_then(Value::as_f64) {
-                items.push(UsageItem::percent(window_label(key), used, iso(w.get("resets_at"))));
-            }
-        }
+    if let Some(extra) = v.get("extra_usage").filter(|e| e.get("is_enabled").and_then(Value::as_bool) == Some(true))
+        && let Some(pct) = extra.get("utilization").and_then(Value::as_f64)
+    {
+        items.push(UsageItem::percent("Extra usage (monthly)", pct, None));
     }
     if let Some(p) = plan.filter(|p| !p.is_empty()) {
-        let mut c = p.chars();
-        let pretty = match c.next() {
-            Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
-            None => String::new(),
-        };
-        items.push(UsageItem::text("Plan", pretty));
+        items.push(UsageItem::text("Plan", title_case(p)));
     }
     Usage {
         items,
-        note: Some("Rolling limits as reported by Claude; the weekly window is shared with claude.ai.".into()),
+        note: Some("Rolling limits as reported by Claude; the weekly windows are shared with claude.ai.".into()),
         fetched_at: Utc::now(),
     }
 }
@@ -263,28 +286,44 @@ mod tests {
     }
 
     #[test]
-    fn parses_usage_windows_and_extra_models() {
+    fn prefers_structured_limits_and_ignores_codename_buckets() {
         let v: Value = serde_json::from_str(
-            r#"{"five_hour":{"utilization":42.5,"resets_at":"2026-09-08T22:00:00Z"},
-                "seven_day":{"utilization":12,"resets_at":"2026-09-12T00:00:00+00:00"},
-                "seven_day_opus":{"utilization":3.2,"resets_at":"2026-09-12T00:00:00Z"},
-                "extra_usage":{"enabled":false}}"#,
+            r#"{"five_hour":{"utilization":100,"resets_at":"2026-09-08T22:00:00Z"},
+                "nimbus_quill":{"utilization":0,"resets_at":null},
+                "tangelo":null,
+                "extra_usage":{"is_enabled":false,"utilization":null},
+                "limits":[
+                  {"kind":"session","group":"session","percent":100,"severity":"critical","resets_at":"2026-09-08T21:50:00+00:00","scope":null,"is_active":true},
+                  {"kind":"weekly_all","group":"weekly","percent":19,"severity":"normal","resets_at":"2026-09-15T11:00:00+00:00","scope":null,"is_active":false},
+                  {"kind":"weekly_scoped","group":"weekly","percent":37,"severity":"normal","resets_at":"2026-09-15T11:00:00+00:00","scope":{"model":{"id":null,"display_name":"Fable"},"surface":null},"is_active":false}
+                ]}"#,
         )
         .unwrap();
         let u = parse_claude_usage(&v, Some("max"));
         let labels: Vec<&str> = u.items.iter().map(|i| i.label.as_str()).collect();
-        assert_eq!(labels, ["Session (5h)", "Weekly", "Weekly · Opus", "Plan"]);
-        match &u.items[0].kind {
+        assert_eq!(labels, ["Session (5h)", "Weekly", "Weekly · Fable", "Plan"]);
+        assert_eq!(u.items[0].detail.as_deref(), Some("limit reached"));
+        match &u.items[2].kind {
             crate::core::model::UsageKind::Percent { used, resets_at } => {
-                assert_eq!(*used, 42.5);
+                assert_eq!(*used, 37.0);
                 assert!(resets_at.is_some());
             }
             other => panic!("unexpected {other:?}"),
         }
-        match &u.items[3].kind {
-            crate::core::model::UsageKind::Text { value } => assert_eq!(value, "Max"),
-            other => panic!("unexpected {other:?}"),
-        }
+    }
+
+    #[test]
+    fn falls_back_to_legacy_windows() {
+        let v: Value = serde_json::from_str(
+            r#"{"five_hour":{"utilization":42.5,"resets_at":"2026-09-08T22:00:00Z"},
+                "seven_day":{"utilization":12,"resets_at":"2026-09-12T00:00:00+00:00"},
+                "seven_day_opus":{"utilization":3.2,"resets_at":"2026-09-12T00:00:00Z"},
+                "iguana_necktie":{"utilization":0}}"#,
+        )
+        .unwrap();
+        let u = parse_claude_usage(&v, None);
+        let labels: Vec<&str> = u.items.iter().map(|i| i.label.as_str()).collect();
+        assert_eq!(labels, ["Session (5h)", "Weekly", "Weekly · Opus"]);
     }
 
     #[test]
