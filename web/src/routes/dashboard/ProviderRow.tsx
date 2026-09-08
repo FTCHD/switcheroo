@@ -10,34 +10,6 @@ import { TierBadge } from './TierBadge'
 import { UsageStrip } from './UsageStrip'
 import { WarningList } from './WarningList'
 
-function LiveDot({
-    off = false,
-    color,
-    className,
-}: {
-    off?: boolean
-    color?: string
-    className?: string
-}) {
-    return (
-        <span aria-hidden="true" className={cn('relative flex size-2.5 shrink-0', className)}>
-            {!off && (
-                <span
-                    style={color ? { borderColor: color } : undefined}
-                    className="absolute inset-0 rounded-full border-[1.5px] border-primary motion-safe:animate-live"
-                />
-            )}
-            <span
-                style={off || !color ? undefined : { backgroundColor: color }}
-                className={cn(
-                    'relative size-2.5 rounded-full',
-                    off ? 'border border-border bg-transparent' : 'bg-primary'
-                )}
-            />
-        </span>
-    )
-}
-
 /** A dashed "empty jack" on the switchboard: an action that produces a chip. */
 function JackButton({
     children,
@@ -164,26 +136,23 @@ export function ProviderRow({
                         </div>
                     </div>
 
-                    <div className="mt-2 flex items-start gap-3">
-                        <LiveDot off={!live} color={info.color} className="mt-[11px]" />
-                        <div className="min-w-0">
-                            {live ? (
-                                <>
-                                    <p className="font-heading text-[24px] leading-[1.15] font-medium tracking-[-0.015em] break-words sm:text-[26px]">
-                                        {live.label}
-                                    </p>
-                                    {detail && (
-                                        <p className="mt-1 text-sm text-muted-foreground text-pretty">
-                                            {detail}
-                                        </p>
-                                    )}
-                                </>
-                            ) : (
-                                <p className="font-heading text-[24px] leading-[1.15] font-medium tracking-[-0.015em] text-muted-foreground/50 sm:text-[26px]">
-                                    Not signed in
+                    <div className="mt-2 min-w-0">
+                        {live ? (
+                            <>
+                                <p className="font-heading text-[24px] leading-[1.15] font-medium tracking-[-0.015em] break-words sm:text-[26px]">
+                                    {live.label}
                                 </p>
-                            )}
-                        </div>
+                                {detail && (
+                                    <p className="mt-1 text-sm text-muted-foreground text-pretty">
+                                        {detail}
+                                    </p>
+                                )}
+                            </>
+                        ) : (
+                            <p className="font-heading text-[24px] leading-[1.15] font-medium tracking-[-0.015em] text-muted-foreground/50 sm:text-[26px]">
+                                Not signed in
+                            </p>
+                        )}
                     </div>
 
                     <UsageStrip

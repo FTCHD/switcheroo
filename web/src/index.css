@@ -144,7 +144,6 @@
 @theme inline {
     --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
     --animate-rise: rise 0.55s cubic-bezier(0.2, 0, 0, 1) both;
-    --animate-live: live 2.4s ease-in-out infinite;
 }
 
 @keyframes rise {
@@ -155,18 +154,6 @@
     to {
         opacity: 1;
         translate: 0 0;
-    }
-}
-
-@keyframes live {
-    0% {
-        opacity: 0.7;
-        scale: 1;
-    }
-    70%,
-    100% {
-        opacity: 0;
-        scale: 2.6;
     }
 }
 
