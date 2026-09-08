@@ -41,7 +41,7 @@ pub fn provider() -> Box<dyn Provider> {
             process_names: &[],
             env_shadow: &["TURSO_API_TOKEN"],
             restart_hint: None,
-            notes: "Swaps token/username/organization in Turso's settings.json (TURSO_CONFIG_FOLDER honoured).",
+            notes: "Swaps token/username/organization in Turso's settings.json (TURSO_CONFIG_FOLDER honored).",
             login: &["turso", "auth", "login"],
         },
         slots,

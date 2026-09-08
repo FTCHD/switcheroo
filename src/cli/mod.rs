@@ -248,7 +248,7 @@ fn dispatch(cli: Cli) -> Result<i32> {
                 && !json
                 && !output::confirm(&format!("Forget {} account {} ({})?", p.meta().name, target.label, target.id))?
             {
-                bail!("cancelled");
+                bail!("canceled");
             }
             let acct = core.remove(&provider, &target.id)?;
             if json {

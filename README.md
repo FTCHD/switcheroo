@@ -101,7 +101,7 @@ Before switching, Switcheroo warns about anything that would make it a no-op: en
 | `use <provider> [account]` | Switch; account by email, label or unique fragment, picker if omitted |
 | `list [provider]` · `rename` · `remove` | Manage remembered accounts |
 | `usage [provider] [--refresh]` | Used quota and reset times for signed-in accounts |
-| `doctor` · `providers` | Diagnostics and the provider catalogue |
+| `doctor` · `providers` | Diagnostics and the provider catalog |
 | `tray` · `serve [--bind]` · `open` | Run the tray, the web server, or open the UI |
 | `autostart enable\|disable\|status` | Start the tray at login |
 | `completions <shell>` | Shell completions |

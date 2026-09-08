@@ -39,7 +39,7 @@ export function ProviderIcon({
     className,
 }: {
     id: string
-    /** Provider accent; the mark is drawn in it. Falls back to the text colour. */
+    /** Provider accent; the mark is drawn in it. Falls back to the text color. */
     color?: string
     size?: 'sm' | 'md'
     muted?: boolean

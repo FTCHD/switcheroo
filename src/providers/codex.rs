@@ -129,7 +129,7 @@ pub fn provider() -> Box<dyn Provider> {
             restart_hint: Some(
                 "Running Codex sessions and app-server daemons cache credentials at startup; restart them to use the new account.",
             ),
-            notes: "Swaps ~/.codex/auth.json (honours CODEX_HOME). Keyring credential mode (cli_auth_credentials_store = \"keyring\") is not supported.",
+            notes: "Swaps ~/.codex/auth.json (honors CODEX_HOME). Keyring credential mode (cli_auth_credentials_store = \"keyring\") is not supported.",
             login: &["codex", "login"],
         },
         slots,
