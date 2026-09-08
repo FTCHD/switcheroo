@@ -1,0 +1,57 @@
+[package]
+name = "switcheroo"
+version = "0.1.0"
+edition = "2024"
+description = "Switch the logged-in account of developer CLIs from the terminal, a web UI, or the tray"
+license = "MIT"
+repository = "https://github.com/switcheroo-app/switcheroo"
+
+[profile.release]
+strip = true
+lto = "thin"
+codegen-units = 1
+
+[dependencies]
+anyhow = "1.0.104"
+axum = { version = "0.8.9", features = ["json"] }
+base64 = "0.23.1"
+chrono = { version = "0.4.45", features = ["serde"] }
+clap = { version = "4.6.6", features = ["derive", "env"] }
+clap_complete = "4.6.9"
+comfy-table = "8.0.0"
+dialoguer = "0.12.0"
+dirs = "7.0.0"
+env_logger = "0.11.11"
+futures-util = { version = "0.3.34", default-features = false, features = ["std"] }
+image = { version = "0.25.10", default-features = false, features = ["png"] }
+keyring-core = "1.0.0"
+log = "0.4.34"
+mime_guess = "2.0.5"
+notify = "8.2.0"
+open = "5.4.3"
+regex = "1.13.1"
+rust-embed = { version = "8.12.0", features = ["include-exclude"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = { version = "1.0.151", features = ["preserve_order"] }
+subtle = "2.6.1"
+sysinfo = { version = "0.39.6", default-features = false, features = ["system"] }
+tao = "0.37.0"
+thiserror = "2.0.20"
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "sync", "time", "process", "fs", "signal", "io-util"] }
+tokio-stream = { version = "0.1.19", features = ["sync"] }
+tray-icon = "0.24.2"
+uuid = { version = "1.26.0", features = ["v4"] }
+zeroize = { version = "1.9.0", features = ["serde"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2-core-foundation = "0.3.2"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-native-keyring-store = "1.1.0"
+windows-sys = { version = "0.61.2", features = ["Win32_System_Console", "Win32_Foundation"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+dbus-secret-service-keyring-store = { version = "1.0.1", features = ["crypto-rust"] }
+
+[dev-dependencies]
+tempfile = "3.27.0"
