@@ -45,11 +45,11 @@ cd web && npm ci && npm run build && cd ..
 cargo build --release          # → target/release/switcheroo
 ```
 
-## Three ways to use it
+## Usage
 
-- **Terminal**. Every operation is a `switcheroo` subcommand with `--json` output, so it scripts well. `switcheroo --help` or the Reference page in the web UI lists them all.
-- **Web UI**. `switcheroo open` starts a loopback-only server and opens a page showing each CLI, who it is signed in as, and the remembered accounts to switch to, plus diagnostics and settings.
-- **Tray**. `switcheroo tray` adds a menu-bar item with one submenu per CLI. Click an account to switch, "Save current login" to remember a login you made with the CLI itself, "Add account…" to open a terminal running the CLI's own sign-in. `switcheroo autostart enable` (or the "Start at login" toggle) makes it open when you sign in to the machine.
+- **On your laptop?** Run `switcheroo tray` and keep it running: a menu-bar item with one submenu per CLI, click an account to switch. `switcheroo autostart enable` (or the "Start at login" toggle) opens it when you sign in to the machine, and "Open Switcheroo…" gets you the full web UI for renaming, forgetting, settings and diagnostics.
+- **On a remote server?** No display needed: `switcheroo serve` runs the web UI on loopback, and an SSH tunnel (`ssh -L 20123:127.0.0.1:20123 host`, using the port it prints) puts it in your local browser.
+- **Prefer the terminal?** Everything is a `switcheroo` subcommand with `--json` output, so it scripts well: `switcheroo --help` or the Reference page lists them all.
 
 ## Supported CLIs
 
