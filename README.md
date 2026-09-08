@@ -1,14 +1,16 @@
-<h1 align="center">Switcheroo</h1>
+<div align="center">
 
-<p align="center">
-  Switch the signed-in account of your developer CLIs in one command, one click, or one tray menu.
-</p>
+# Switcheroo
 
-<p align="center">
-  <a href="https://github.com/ftchd/switcheroo/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/ftchd/switcheroo/actions/workflows/ci.yml/badge.svg"></a>
-  <a href="https://github.com/ftchd/switcheroo/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/ftchd/switcheroo?display_name=tag"></a>
-  <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
-</p>
+<img src=".github/icon.png" alt="Switcheroo" width="120">
+
+### Switch the signed-in account of your developer CLIs in one command, one click, or one tray menu.
+
+[![CI](https://github.com/ftchd/switcheroo/actions/workflows/ci.yml/badge.svg)](https://github.com/ftchd/switcheroo/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/ftchd/switcheroo?display_name=tag)](https://github.com/ftchd/switcheroo/releases/latest)
+[![MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+</div>
 
 <p align="center">
   <picture>
