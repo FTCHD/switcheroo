@@ -30,7 +30,15 @@ switcheroo tray                             # menu-bar quick switcher + web UI
 
 ## Install
 
-Grab the binary for your platform from the [latest release](https://github.com/ftchd/switcheroo/releases/latest), make it executable, and put it on your `PATH`:
+On macOS and Linux, one line:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/ftchd/switcheroo/main/install.sh | sh
+```
+
+The script picks the binary for your machine, verifies it against the release's `SHA256SUMS`, and puts it in `/usr/local/bin` (or `~/.local/bin`). Set `SWITCHEROO_VERSION=v0.1.0` to pin a version or `SWITCHEROO_INSTALL_DIR` to choose the directory. It downloads with `curl`, which does not attach macOS's quarantine attribute, so there is no Gatekeeper prompt.
+
+Prefer to do it by hand? Grab the asset from the [latest release](https://github.com/ftchd/switcheroo/releases/latest), make it executable, and put it on your `PATH`:
 
 | Platform | Asset |
 |---|---|
@@ -40,12 +48,7 @@ Grab the binary for your platform from the [latest release](https://github.com/f
 | Linux, arm64 | `switcheroo-linux-aarch64` |
 | Windows, x86_64 | `switcheroo-windows-x86_64.exe` |
 
-```sh
-chmod +x switcheroo-macos-aarch64 && mv switcheroo-macos-aarch64 /usr/local/bin/switcheroo
-switcheroo doctor
-```
-
-macOS may ask you to allow the binary the first time (System Settings → Privacy & Security → Open Anyway) since releases are not notarized yet. Linux needs GTK 3 and an AppIndicator library (`libayatana-appindicator3`) for the tray; without them `switcheroo serve` still gives you the web UI.
+A binary saved by a browser on macOS carries the quarantine attribute and Gatekeeper will refuse it until you clear it: `xattr -d com.apple.quarantine switcheroo`. Linux needs GTK 3 and an AppIndicator library (`libayatana-appindicator3`) for the tray; without them `switcheroo serve` still gives you the web UI.
 
 To build from source you need Rust and Node:
 
