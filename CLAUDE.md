@@ -12,7 +12,7 @@ One Rust binary that switches the logged-in account of developer CLIs (Claude Co
 ## Invariants
 
 - The `Provider` trait is the only way providers are used. CLI, API, tray and web never special-case a provider id.
-- Providers never print, log, or return secrets. Secret bytes travel only as `SecretBlob` (zeroized, redacted in Debug). No API route returns a blob.
+- Providers never print, log, or return secrets. Secret bytes travel only as `SecretBlob` (zeroized, redacted in Debug). No API route returns a blob. Usage fetches read the token inside the provider and return only numbers and labels.
 - Every switch re-captures the live login first (`Core::use_account`), then activates, then verifies, and rolls back on a failed verify. Do not bypass `Core` for anything that touches a credential slot.
 - Composite files (`~/.claude.json`, `~/.expo/state.json`, `~/.npmrc`) are patched by key/line through a slot adapter, never replaced wholesale. All writes go through `core::fsutil::write_atomic`.
 - State writes are atomic and publish on the bus; tray and web render from state only.
@@ -22,7 +22,8 @@ One Rust binary that switches the logged-in account of developer CLIs (Claude Co
 
 ## Adding a provider
 
-1. `src/providers/<id>.rs`: a `ProviderMeta` (id, name, tier, binaries, process names, `env_shadow`, restart hint, notes, login command), the slots (`FileSlot`, `JsonKeysSlot`, `LinesSlot`, `KeychainItemSlot`, `LockedSlot`), an `IdentityResolver`, optional verify command and extra preflight. Most providers are a `SlotProvider` value; CLIs with their own registry implement `Provider` directly (see `github_cli.rs`, `netlify.rs`).
+1. `src/providers/<id>.rs`: a `ProviderMeta` (id, name, `color` as `#RRGGBB` that reads on both themes, tier, binaries, process names, `env_shadow`, restart hint, notes, login command), the slots (`FileSlot`, `JsonKeysSlot`, `LinesSlot`, `KeychainItemSlot`, `LockedSlot`), an `IdentityResolver`, optional verify command and extra preflight. Most providers are a `SlotProvider` value; CLIs with their own registry implement `Provider` directly (see `github_cli.rs`, `netlify.rs`).
+   Optional: a `usage` hook (`UsageFn` on `SlotProvider`, or `supports_usage`/`usage` on a custom provider) that returns a `Usage` of `Percent`/`Gauge`/`Text` items. The provider decides what the items are; keep the HTTP parsing in a pure `parse_*` function with fixture tests. Tokens read from the slot never leave the provider.
 2. Tests in the same file: identity parsing from a redacted fixture written into a temp home (`Cx::test`), a capture → activate round trip that proves unrelated keys/lines survive, preflight warnings.
 3. One line in `providers::all()`. Nothing else changes.
 
