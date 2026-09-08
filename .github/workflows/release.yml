@@ -36,9 +36,11 @@ jobs:
           - os: macos-14
             target: aarch64-apple-darwin
             name: switcheroo-macos-aarch64
-          - os: macos-13
+          # Intel macOS is cross-compiled on the Apple-silicon runner (macos-13 is retired).
+          - os: macos-14
             target: x86_64-apple-darwin
             name: switcheroo-macos-x86_64
+            cross: true
           - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             name: switcheroo-linux-x86_64
@@ -76,7 +78,9 @@ jobs:
             # ad-hoc signature: stable identity for keychain ACLs across launches
             codesign -s - --force "out/${{ matrix.name }}"
           fi
-          "out/${{ matrix.name }}" --version
+          if [ "${{ matrix.cross }}" != "true" ]; then
+            "out/${{ matrix.name }}" --version
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.name }}
