@@ -1,23 +1,17 @@
 <div align="center">
 
-# Switcheroo
-
 <img src=".github/icon.png" alt="Switcheroo" width="120">
-
-### Switch the signed-in account of your developer CLIs in one command, one click, or one tray menu.
-
-[![CI](https://github.com/ftchd/switcheroo/actions/workflows/ci.yml/badge.svg)](https://github.com/ftchd/switcheroo/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/ftchd/switcheroo?display_name=tag)](https://github.com/ftchd/switcheroo/releases/latest)
-[![MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 </div>
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/readme/accounts-dark.png">
-    <img alt="Switcheroo's Accounts page: each CLI on the machine, who it is signed in as, and the remembered accounts to switch to" src="docs/readme/accounts-light.png" width="900">
+    <source media="(prefers-color-scheme: dark)" srcset=".github/accounts-dark.png">
+    <img alt="Switcheroo's Accounts page: each CLI on the machine, who it is signed in as, and the remembered accounts to switch to" src=".github/accounts-light.png" width="900">
   </picture>
 </p>
+
+### Switch the signed-in account of your CLIs.
 
 Work account, personal account, a client's account: most developer CLIs only hold one login at a time, so you end up signing out and back in all day. Switcheroo remembers each login in your OS credential store and puts the one you want back in a second, for Claude Code, Codex, Vercel, Wrangler, npm, Fly.io and more.
 
@@ -31,8 +25,6 @@ switcheroo tray                             # menu-bar quick switcher + web UI
 ```
 
 ## Install
-
-One line on every platform.
 
 macOS and Linux:
 
