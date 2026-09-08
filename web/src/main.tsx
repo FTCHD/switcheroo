@@ -3,6 +3,8 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { createBrowserRouter, RouterProvider } from 'react-router'
 import './index.css'
+import { ThemeProvider } from '@/components/theme-provider'
+import { Toaster } from '@/components/ui/toast'
 import { Dashboard } from '@/routes/dashboard/Dashboard'
 import { DoctorPage } from '@/routes/doctor/Doctor'
 import { ProviderPage } from '@/routes/provider/ProviderPage'
@@ -27,8 +29,11 @@ const router = createBrowserRouter([
 
 createRoot(document.getElementById('root') as HTMLElement).render(
     <StrictMode>
-        <QueryClientProvider client={queryClient}>
-            <RouterProvider router={router} />
-        </QueryClientProvider>
+        <ThemeProvider storageKey="switcheroo-theme">
+            <QueryClientProvider client={queryClient}>
+                <RouterProvider router={router} />
+                <Toaster />
+            </QueryClientProvider>
+        </ThemeProvider>
     </StrictMode>
 )

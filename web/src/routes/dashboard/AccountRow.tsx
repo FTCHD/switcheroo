@@ -1,7 +1,17 @@
-import { MoreHorizontal } from 'lucide-react'
+import { MoreHorizontalIcon } from 'lucide-react'
 import { useState } from 'react'
 import { useRemove, useRename, useSwitch } from '@/api/queries'
 import type { Account } from '@/api/types'
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -38,7 +48,7 @@ export function AccountRow({
     const doSwitch = () => sw.mutate({ provider: account.provider, account: account.id })
 
     return (
-        <div className="flex items-center gap-2 rounded-md border px-3 py-2">
+        <div className="flex items-center gap-2 rounded-2xl border px-3 py-2">
             <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                     <span className="truncate text-sm font-medium">{account.label}</span>
@@ -62,16 +72,16 @@ export function AccountRow({
                 {sw.isPending ? 'Switching…' : active ? 'Active' : 'Switch'}
             </Button>
             <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <Button size="icon" variant="ghost" aria-label="More">
-                        <MoreHorizontal className="size-4" />
-                    </Button>
+                <DropdownMenuTrigger
+                    render={<Button size="icon-sm" variant="ghost" aria-label="More" />}
+                >
+                    <MoreHorizontalIcon />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                    <DropdownMenuItem onSelect={() => setRenaming(true)}>Rename</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setRenaming(true)}>Rename</DropdownMenuItem>
                     <DropdownMenuItem
-                        className="text-destructive"
-                        onSelect={() =>
+                        variant="destructive"
+                        onClick={() =>
                             remove.mutate({ provider: account.provider, account: account.id })
                         }
                     >
@@ -106,30 +116,21 @@ export function AccountRow({
                 </DialogContent>
             </Dialog>
 
-            <Dialog open={confirming} onOpenChange={setConfirming}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Switch to {account.label}?</DialogTitle>
-                    </DialogHeader>
-                    <p className="text-sm text-muted-foreground">
-                        The current login is saved first, then replaced. Every terminal using this
-                        CLI is affected.
-                    </p>
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setConfirming(false)}>
-                            Cancel
-                        </Button>
-                        <Button
-                            onClick={() => {
-                                setConfirming(false)
-                                doSwitch()
-                            }}
-                        >
-                            Switch
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+            <AlertDialog open={confirming} onOpenChange={setConfirming}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Switch to {account.label}?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            The current login is saved first, then replaced. Every terminal using
+                            this CLI is affected.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={doSwitch}>Switch</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     )
 }

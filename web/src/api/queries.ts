@@ -1,7 +1,7 @@
 // react-query hooks over the API. SSE (events.ts) invalidates these on server-side changes.
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { toast } from 'sonner'
+import { toast } from '@/components/ui/toast'
 import { api } from './client'
 import type {
     Account,
@@ -18,6 +18,16 @@ export const keys = {
     settings: ['settings'] as const,
     doctor: ['doctor'] as const,
     status: ['status'] as const,
+}
+
+const notify = {
+    success: (title: string, description?: string) =>
+        toast.add({ title, description, type: 'success' }),
+    info: (title: string, description?: string) => toast.add({ title, description, type: 'info' }),
+    warning: (title: string, description?: string, timeout?: number) =>
+        toast.add({ title, description, type: 'warning', timeout }),
+    error: (title: string, description?: string) =>
+        toast.add({ title, description, type: 'error', timeout: 8000 }),
 }
 
 export function useServerStatus() {
@@ -62,12 +72,13 @@ export function useSwitch() {
                 account,
             }),
         onSuccess: (out) => {
-            toast.success(`Switched to ${out.account.label}`, {
-                description: out.warnings.map((w) => w.message).join('\n') || undefined,
-            })
+            notify.success(
+                `Switched to ${out.account.label}`,
+                out.warnings.map((w) => w.message).join('\n') || undefined
+            )
             invalidate()
         },
-        onError: (e: Error) => toast.error('Switch failed', { description: e.message }),
+        onError: (e: Error) => notify.error('Switch failed', e.message),
     })
 }
 
@@ -77,10 +88,10 @@ export function useSave() {
         mutationFn: ({ provider, label }: { provider: string; label?: string }) =>
             api.post<Account>(`/api/providers/${encodeURIComponent(provider)}/save`, { label }),
         onSuccess: (a) => {
-            toast.success(`Saved ${a.label}`)
+            notify.success(`Saved ${a.label}`)
             invalidate()
         },
-        onError: (e: Error) => toast.error('Could not save the login', { description: e.message }),
+        onError: (e: Error) => notify.error('Could not save the login', e.message),
     })
 }
 
@@ -92,14 +103,15 @@ export function useLogin() {
             ),
         onSuccess: (r) => {
             if (r.spawned) {
-                toast.info('A terminal window was opened for the login', {
-                    description: 'Finish the login there; this page updates automatically.',
-                })
+                notify.info(
+                    'A terminal window was opened for the login',
+                    'Finish the login there; this page updates automatically.'
+                )
             } else {
-                toast.warning('Run this in a terminal', { description: r.command, duration: 15000 })
+                notify.warning('Run this in a terminal', r.command, 15000)
             }
         },
-        onError: (e: Error) => toast.error('Could not start the login', { description: e.message }),
+        onError: (e: Error) => notify.error('Could not start the login', e.message),
     })
 }
 
@@ -109,7 +121,7 @@ export function useRefresh() {
         mutationFn: (provider: string) =>
             api.post<ProviderStatus>(`/api/providers/${encodeURIComponent(provider)}/refresh`),
         onSuccess: invalidate,
-        onError: (e: Error) => toast.error('Refresh failed', { description: e.message }),
+        onError: (e: Error) => notify.error('Refresh failed', e.message),
     })
 }
 
@@ -121,10 +133,10 @@ export function useRemove() {
                 `/api/accounts/${encodeURIComponent(provider)}/${encodeURIComponent(account)}`
             ),
         onSuccess: (a) => {
-            toast.success(`Removed ${a.label}`)
+            notify.success(`Removed ${a.label}`)
             invalidate()
         },
-        onError: (e: Error) => toast.error('Remove failed', { description: e.message }),
+        onError: (e: Error) => notify.error('Remove failed', e.message),
     })
 }
 
@@ -145,7 +157,7 @@ export function useRename() {
                 { label }
             ),
         onSuccess: invalidate,
-        onError: (e: Error) => toast.error('Rename failed', { description: e.message }),
+        onError: (e: Error) => notify.error('Rename failed', e.message),
     })
 }
 
@@ -155,8 +167,8 @@ export function useSaveSettings() {
         mutationFn: (s: Settings) => api.put<Settings>('/api/settings', s),
         onSuccess: (s) => {
             qc.setQueryData(keys.settings, s)
-            toast.success('Settings saved')
+            notify.success('Settings saved')
         },
-        onError: (e: Error) => toast.error('Could not save settings', { description: e.message }),
+        onError: (e: Error) => notify.error('Could not save settings', e.message),
     })
 }

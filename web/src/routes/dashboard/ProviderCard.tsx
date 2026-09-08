@@ -1,4 +1,4 @@
-import { RefreshCw } from 'lucide-react'
+import { RefreshCwIcon } from 'lucide-react'
 import { Link } from 'react-router'
 import { useLogin, useRefresh, useSave } from '@/api/queries'
 import type { ProviderStatus } from '@/api/types'
@@ -28,7 +28,7 @@ export function ProviderCard({
         <Card>
             <CardHeader className="pb-3">
                 <div className="flex items-center gap-2">
-                    <CardTitle className="text-base">
+                    <CardTitle>
                         {expanded ? (
                             info.name
                         ) : (
@@ -40,16 +40,14 @@ export function ProviderCard({
                         {status.installed?.version ?? ''}
                     </span>
                     <Button
-                        size="icon"
+                        size="icon-sm"
                         variant="ghost"
                         aria-label="Refresh"
                         title="Ask the CLI who is logged in"
                         onClick={() => refresh.mutate(info.id)}
                         disabled={refresh.isPending}
                     >
-                        <RefreshCw
-                            className={refresh.isPending ? 'size-4 animate-spin' : 'size-4'}
-                        />
+                        <RefreshCwIcon className={refresh.isPending ? 'animate-spin' : ''} />
                     </Button>
                 </div>
                 <div className="text-sm">

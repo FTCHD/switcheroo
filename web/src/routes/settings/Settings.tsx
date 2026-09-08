@@ -30,7 +30,7 @@ export function SettingsPage() {
         <div className="mx-auto max-w-2xl space-y-4">
             <Card>
                 <CardHeader>
-                    <CardTitle className="text-base">Secrets</CardTitle>
+                    <CardTitle>Secrets</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm">
                     <p>
@@ -42,7 +42,7 @@ export function SettingsPage() {
                         <Label htmlFor="vault">Backend</Label>
                         <select
                             id="vault"
-                            className="rounded-md border bg-background px-2 py-1"
+                            className="h-9 rounded-4xl border border-border bg-background px-3 text-sm"
                             value={draft.vault}
                             onChange={(e) =>
                                 setDraft({ ...draft, vault: e.target.value as Settings['vault'] })
@@ -61,7 +61,7 @@ export function SettingsPage() {
 
             <Card>
                 <CardHeader>
-                    <CardTitle className="text-base">Tray & switching</CardTitle>
+                    <CardTitle>Tray & switching</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
                     <div className="flex items-center justify-between">
@@ -89,7 +89,7 @@ export function SettingsPage() {
 
             <Card>
                 <CardHeader>
-                    <CardTitle className="text-base">Server</CardTitle>
+                    <CardTitle>Server</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
                     <Label htmlFor="bind">Listen address (loopback only; blank = automatic)</Label>
@@ -104,7 +104,7 @@ export function SettingsPage() {
 
             <Card>
                 <CardHeader>
-                    <CardTitle className="text-base">Hidden providers</CardTitle>
+                    <CardTitle>Hidden providers</CardTitle>
                 </CardHeader>
                 <CardContent className="grid gap-2 sm:grid-cols-2">
                     {(providers.data ?? []).map((p) => (

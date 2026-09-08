@@ -1,4 +1,4 @@
-import { AlertTriangle, Info } from 'lucide-react'
+import { InfoIcon, TriangleAlertIcon } from 'lucide-react'
 import type { Warning } from '@/api/types'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
@@ -12,11 +12,7 @@ export function WarningList({ warnings }: { warnings: Warning[] }) {
                     variant={w.severity === 'warn' ? 'destructive' : 'default'}
                     className="py-2"
                 >
-                    {w.severity === 'warn' ? (
-                        <AlertTriangle className="size-4" />
-                    ) : (
-                        <Info className="size-4" />
-                    )}
+                    {w.severity === 'warn' ? <TriangleAlertIcon /> : <InfoIcon />}
                     <AlertDescription className="text-xs">{w.message}</AlertDescription>
                 </Alert>
             ))}

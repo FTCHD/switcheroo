@@ -10,7 +10,7 @@ export function DoctorPage() {
         <div className="space-y-4">
             <Card>
                 <CardHeader>
-                    <CardTitle className="text-base">Environment</CardTitle>
+                    <CardTitle>Environment</CardTitle>
                 </CardHeader>
                 <CardContent className="grid gap-1 text-sm sm:grid-cols-2">
                     <div>Version</div>
@@ -31,7 +31,7 @@ export function DoctorPage() {
             </Card>
             <Card>
                 <CardHeader>
-                    <CardTitle className="text-base">Providers</CardTitle>
+                    <CardTitle>Providers</CardTitle>
                 </CardHeader>
                 <CardContent>
                     <table className="w-full text-sm">

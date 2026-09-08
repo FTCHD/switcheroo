@@ -1,11 +1,56 @@
 {
     "$schema": "https://biomejs.dev/schemas/2.5.12/schema.json",
-    "files": { "includes": ["src/**", "vite.config.ts"] },
-    "formatter": { "enabled": true, "indentStyle": "space", "indentWidth": 4, "lineWidth": 100 },
-    "javascript": {
-        "formatter": { "quoteStyle": "single", "semicolons": "asNeeded", "trailingCommas": "es5" }
+    "files": {
+        "includes": ["src/**", "vite.config.ts", "!**/node_modules", "!**/dist"],
+        "ignoreUnknown": true
     },
-    "css": { "parser": { "tailwindDirectives": true } },
-    "linter": { "enabled": true, "rules": { "preset": "recommended" } },
-    "assist": { "actions": { "source": { "organizeImports": "on" } } }
+    "assist": { "actions": { "source": { "organizeImports": "on" } } },
+    "linter": {
+        "enabled": true,
+        "rules": {
+            "preset": "recommended",
+            "a11y": {
+                "noSvgWithoutTitle": "off",
+                "useKeyWithClickEvents": "off",
+                "noLabelWithoutControl": "off",
+                "useSemanticElements": "off",
+                "noRedundantRoles": "off"
+            },
+            "complexity": {
+                "noUselessTypeConstraint": "off",
+                "useSimplifiedLogicExpression": "off",
+                "noExcessiveCognitiveComplexity": "off"
+            },
+            "correctness": {
+                "useImportExtensions": "off",
+                "noUnusedImports": { "level": "warn", "fix": "safe" }
+            },
+            "style": {
+                "useTemplate": "off",
+                "noNonNullAssertion": "off",
+                "useBlockStatements": "off",
+                "noInferrableTypes": "off",
+                "noDefaultExport": "off",
+                "useNamingConvention": "off",
+                "useForOf": "off"
+            },
+            "suspicious": { "noArrayIndexKey": "off", "noExplicitAny": "off" }
+        }
+    },
+    "formatter": {
+        "enabled": true,
+        "formatWithErrors": true,
+        "indentStyle": "space",
+        "indentWidth": 4,
+        "lineWidth": 100
+    },
+    "css": { "parser": { "cssModules": true, "tailwindDirectives": true } },
+    "javascript": {
+        "formatter": {
+            "quoteStyle": "single",
+            "quoteProperties": "preserve",
+            "trailingCommas": "es5",
+            "semicolons": "asNeeded"
+        }
+    }
 }
