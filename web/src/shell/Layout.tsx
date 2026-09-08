@@ -8,9 +8,9 @@ import { cn } from '@/lib/ui'
 
 const nav = [
     { to: '/', label: 'Accounts', end: true },
-    { to: '/cli', label: 'CLI' },
     { to: '/doctor', label: 'Doctor' },
     { to: '/settings', label: 'Settings' },
+    { to: '/reference', label: 'Reference' },
 ]
 
 function ThemeToggle() {
