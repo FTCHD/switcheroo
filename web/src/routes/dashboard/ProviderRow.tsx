@@ -1,4 +1,4 @@
-import { PlusIcon, RefreshCwIcon } from 'lucide-react'
+import { ChevronRightIcon, PlusIcon, RefreshCwIcon } from 'lucide-react'
 import { Link } from 'react-router'
 import { useLogin, useRefresh, useSave } from '@/api/queries'
 import type { ProviderStatus } from '@/api/types'
@@ -57,9 +57,17 @@ function Eyebrow({ status, linkTitle }: { status: ProviderStatus; linkTitle: boo
             {linkTitle ? (
                 <Link
                     to={`/providers/${info.id}`}
-                    className={cn(cls, 'transition-colors duration-150 hover:text-foreground')}
+                    title={`${info.name}: details and how switching works`}
+                    className={cn(
+                        cls,
+                        'group/title flex items-center gap-0.5 underline-offset-4 transition-colors duration-150 hover:text-foreground hover:underline hover:decoration-dotted'
+                    )}
                 >
                     {info.name}
+                    <ChevronRightIcon
+                        className="size-3 opacity-60 transition-[translate,opacity] duration-150 group-hover/title:translate-x-0.5 group-hover/title:opacity-100"
+                        strokeWidth={2.5}
+                    />
                 </Link>
             ) : (
                 <span className={cls}>{info.name}</span>
@@ -121,10 +129,6 @@ export function ProviderRow({
                 <ProviderIcon id={info.id} size="sm" muted />
                 <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-1">
                     <Eyebrow status={status} linkTitle={linkTitle} />
-                    <span className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <LiveDot off />
-                        Not signed in
-                    </span>
                     <WarningList warnings={status.warnings} className="basis-full" />
                 </div>
                 <JackButton onClick={() => login.mutate(info.id)} disabled={login.isPending}>
