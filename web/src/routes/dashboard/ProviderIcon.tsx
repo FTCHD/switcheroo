@@ -48,10 +48,8 @@ export function ProviderIcon({
             aria-hidden="true"
             className={cn(
                 'flex shrink-0 items-center justify-center select-none',
-                size === 'sm' ? 'size-7 rounded-full' : 'size-11 rounded-2xl',
-                muted
-                    ? 'bg-muted/60 text-muted-foreground/50 dark:bg-white/4'
-                    : 'bg-muted text-foreground/75 dark:bg-white/8 dark:text-foreground/80',
+                size === 'sm' ? 'size-7' : 'size-11',
+                muted ? 'text-muted-foreground/45' : 'text-foreground/85',
                 className
             )}
         >
@@ -59,16 +57,13 @@ export function ProviderIcon({
                 <svg
                     viewBox="0 0 24 24"
                     fill="currentColor"
-                    className={size === 'sm' ? 'size-3.5' : 'size-5'}
+                    className={size === 'sm' ? 'size-4' : 'size-6'}
                 >
                     <title>{mark.title}</title>
                     <path d={mark.path} />
                 </svg>
             ) : (
-                <TerminalIcon
-                    strokeWidth={1.75}
-                    className={size === 'sm' ? 'size-3.5' : 'size-5'}
-                />
+                <TerminalIcon strokeWidth={1.75} className={size === 'sm' ? 'size-4' : 'size-6'} />
             )}
         </span>
     )

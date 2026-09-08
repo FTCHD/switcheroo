@@ -65,11 +65,6 @@ function Eyebrow({ status, linkTitle }: { status: ProviderStatus; linkTitle: boo
                 <span className={cls}>{info.name}</span>
             )}
             <TierBadge tier={info.tier} />
-            {status.installed?.version && (
-                <span className="font-mono text-[12px] text-muted-foreground/70 tabular-nums">
-                    {status.installed.version}
-                </span>
-            )}
         </div>
     )
 }
