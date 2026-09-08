@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 description = "Switch the logged-in account of developer CLIs from the terminal, a web UI, or the tray"
 license = "MIT"
-repository = "https://github.com/switcheroo-app/switcheroo"
+repository = "https://github.com/ftchd/switcheroo"
 
 [profile.release]
 strip = true

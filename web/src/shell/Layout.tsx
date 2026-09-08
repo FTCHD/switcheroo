@@ -36,12 +36,15 @@ export function Layout() {
         <div className="min-h-screen">
             <header className="sticky top-0 z-30 border-b border-border/60 bg-background/80 backdrop-blur-md">
                 <div className="mx-auto flex h-14 max-w-5xl items-center gap-8 px-6">
-                    <NavLink
-                        to="/"
-                        className="font-heading text-[17px] font-semibold tracking-[-0.01em]"
+                    <a
+                        href="https://github.com/ftchd/switcheroo"
+                        target="_blank"
+                        rel="noreferrer"
+                        title="Switcheroo on GitHub"
+                        className="font-heading text-[17px] font-semibold tracking-[-0.01em] transition-colors duration-150 hover:text-link"
                     >
                         Switcheroo
-                    </NavLink>
+                    </a>
                     <nav className="flex items-center gap-0.5" aria-label="Main">
                         {nav.map((n) => (
                             <NavLink
