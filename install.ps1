@@ -21,7 +21,8 @@ $arch = $env:PROCESSOR_ARCHITECTURE
 if ($env:PROCESSOR_ARCHITEW6432) { $arch = $env:PROCESSOR_ARCHITEW6432 }
 switch ($arch) {
     'AMD64' { $asset = 'switcheroo-windows-x86_64.exe' }
-    default { throw "install.ps1: no prebuilt binary for Windows/$arch yet; build from source: https://github.com/$repo#install" }
+    'ARM64' { $asset = 'switcheroo-windows-aarch64.exe' }
+    default { throw "install.ps1: no prebuilt binary for Windows/$arch; build from source: https://github.com/$repo#install" }
 }
 
 $base = if ($version -eq 'latest') {

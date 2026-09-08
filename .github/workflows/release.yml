@@ -50,6 +50,11 @@ jobs:
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             name: switcheroo-windows-x86_64.exe
+          # Windows on ARM is cross-compiled on the x64 runner; the MSVC ARM64 tools ship with it.
+          - os: windows-latest
+            target: aarch64-pc-windows-msvc
+            name: switcheroo-windows-aarch64.exe
+            cross: true
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
