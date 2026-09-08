@@ -39,7 +39,7 @@ export function Dashboard() {
                 title="Accounts"
                 description={
                     providers.data
-                        ? `${installed.length} ${installed.length === 1 ? 'CLI' : 'CLIs'} on this machine, ${signedIn} signed in. Pick a remembered account to switch; the current login is remembered first.`
+                        ? `${installed.length} ${installed.length === 1 ? 'CLI' : 'CLIs'} on this machine, ${signedIn} signed in.`
                         : 'Who each CLI on this machine is signed in as, and the accounts you can switch to.'
                 }
             />
