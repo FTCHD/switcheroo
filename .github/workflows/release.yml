@@ -1,8 +1,8 @@
 name: release
 
+# Manual only for now. Run it from the Actions tab: on a tag it publishes a GitHub Release,
+# on a branch it just uploads the binaries as an artifact.
 on:
-  push:
-    tags: ['v*']
   workflow_dispatch:
 
 permissions:
