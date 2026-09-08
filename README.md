@@ -30,13 +30,21 @@ switcheroo tray                             # menu-bar quick switcher + web UI
 
 ## Install
 
-On macOS and Linux, one line:
+One line on every platform.
+
+macOS and Linux:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/ftchd/switcheroo/main/install.sh | sh
 ```
 
-The script picks the binary for your machine, verifies it against the release's `SHA256SUMS`, and puts it in `/usr/local/bin` (or `~/.local/bin`). Set `SWITCHEROO_VERSION=v0.1.0` to pin a version or `SWITCHEROO_INSTALL_DIR` to choose the directory. It downloads with `curl`, which does not attach macOS's quarantine attribute, so there is no Gatekeeper prompt.
+Windows (PowerShell):
+
+```powershell
+irm https://raw.githubusercontent.com/ftchd/switcheroo/main/install.ps1 | iex
+```
+
+Both scripts pick the binary for your machine, verify it against the release's `SHA256SUMS`, and put it on your `PATH`: `/usr/local/bin` or `~/.local/bin` on macOS and Linux, `%LOCALAPPDATA%\Programs\switcheroo` on Windows. Set `SWITCHEROO_VERSION=v0.1.0` to pin a version or `SWITCHEROO_INSTALL_DIR` to choose the folder. Because the download is not done by a browser, macOS attaches no quarantine attribute and Windows gets no mark-of-the-web, so neither Gatekeeper nor SmartScreen gets in the way.
 
 Prefer to do it by hand? Grab the asset from the [latest release](https://github.com/ftchd/switcheroo/releases/latest), make it executable, and put it on your `PATH`:
 
