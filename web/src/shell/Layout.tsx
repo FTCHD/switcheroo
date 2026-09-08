@@ -37,12 +37,8 @@ export function Layout() {
                 <div className="mx-auto flex h-14 max-w-5xl items-center gap-8 px-6">
                     <NavLink
                         to="/"
-                        className="flex items-center gap-2.5 font-heading text-[17px] font-semibold tracking-[-0.01em]"
+                        className="font-heading text-[17px] font-semibold tracking-[-0.01em]"
                     >
-                        <span aria-hidden="true" className="relative flex size-2.5">
-                            <span className="absolute inset-0 rounded-full bg-primary motion-safe:animate-live" />
-                            <span className="relative size-2.5 rounded-full bg-primary" />
-                        </span>
                         Switcheroo
                     </NavLink>
                     <nav className="flex items-center gap-0.5" aria-label="Main">
