@@ -9,9 +9,12 @@ import { cn } from '@/lib/ui'
 function Meter({ item, color }: { item: UsageItem; color?: string }) {
     if (item.kind === 'text') {
         return (
-            <div className="flex min-w-0 items-baseline gap-1.5 text-[13px]">
-                <span className="text-muted-foreground">{item.label}</span>
-                <span className="font-medium">{item.value}</span>
+            <div className="min-w-[6rem]">
+                <div className="text-[13px] text-muted-foreground">{item.label}</div>
+                <div className="mt-1.5 flex h-1.5 items-center">
+                    <span className="text-[13px] leading-none font-medium">{item.value}</span>
+                </div>
+                <div className="mt-1 h-4 text-[12px] text-muted-foreground">{item.detail}</div>
             </div>
         )
     }
@@ -41,11 +44,9 @@ function Meter({ item, color }: { item: UsageItem; color?: string }) {
                     }}
                 />
             </div>
-            {(item.resets_at || item.detail) && (
-                <div className="mt-1 text-[12px] text-muted-foreground tabular-nums">
-                    {item.resets_at ? `resets in ${humanizeUntil(item.resets_at)}` : item.detail}
-                </div>
-            )}
+            <div className="mt-1 h-4 text-[12px] text-muted-foreground tabular-nums">
+                {item.resets_at ? `resets in ${humanizeUntil(item.resets_at)}` : item.detail}
+            </div>
         </div>
     )
 }
@@ -90,7 +91,7 @@ export function UsageStrip({
     if (!q.data || q.data.items.length === 0) return null
     return (
         <div className="mt-4">
-            <div className="flex flex-wrap items-end gap-x-8 gap-y-3">
+            <div className="flex flex-wrap items-start gap-x-8 gap-y-3">
                 {q.data.items.map((item) => (
                     <Meter key={item.label} item={item} color={color} />
                 ))}

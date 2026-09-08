@@ -19,17 +19,16 @@ function LiveDot({
     color?: string
     className?: string
 }) {
-    const tint = color ? { backgroundColor: color } : undefined
     return (
         <span aria-hidden="true" className={cn('relative flex size-2.5 shrink-0', className)}>
             {!off && (
                 <span
-                    style={tint}
-                    className="absolute inset-0 rounded-full bg-primary motion-safe:animate-live"
+                    style={color ? { borderColor: color } : undefined}
+                    className="absolute inset-0 rounded-full border-[1.5px] border-primary motion-safe:animate-live"
                 />
             )}
             <span
-                style={off ? undefined : tint}
+                style={off || !color ? undefined : { backgroundColor: color }}
                 className={cn(
                     'relative size-2.5 rounded-full',
                     off ? 'border border-border bg-transparent' : 'bg-primary'
