@@ -1,21 +1,27 @@
 import { InfoIcon, TriangleAlertIcon } from 'lucide-react'
 import type { Warning } from '@/api/types'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import { cn } from '@/lib/ui'
 
-export function WarningList({ warnings }: { warnings: Warning[] }) {
+export function WarningList({ warnings, className }: { warnings: Warning[]; className?: string }) {
     if (warnings.length === 0) return null
     return (
-        <div className="space-y-2">
-            {warnings.map((w) => (
-                <Alert
-                    key={w.code + w.message}
-                    variant={w.severity === 'warn' ? 'destructive' : 'default'}
-                    className="py-2"
-                >
-                    {w.severity === 'warn' ? <TriangleAlertIcon /> : <InfoIcon />}
-                    <AlertDescription className="text-xs">{w.message}</AlertDescription>
-                </Alert>
-            ))}
-        </div>
+        <ul className={cn('space-y-1.5', className)}>
+            {warnings.map((w) => {
+                const warn = w.severity === 'warn'
+                const Icon = warn ? TriangleAlertIcon : InfoIcon
+                return (
+                    <li
+                        key={w.code + w.message}
+                        className="flex items-start gap-2 text-[13px] leading-snug text-muted-foreground text-pretty"
+                    >
+                        <Icon
+                            className={cn('mt-px size-3.5 shrink-0', warn && 'text-destructive')}
+                            strokeWidth={2}
+                        />
+                        <span>{w.message}</span>
+                    </li>
+                )
+            })}
+        </ul>
     )
 }

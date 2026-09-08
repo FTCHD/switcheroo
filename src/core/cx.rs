@@ -136,11 +136,11 @@ impl Cx {
 
     fn rebuild_path(&mut self) {
         let sep = if Os::current() == Os::Windows { ';' } else { ':' };
-        let mut dirs: Vec<PathBuf> =
-            self.env.get("PATH").map(|p| p.split(sep).map(PathBuf::from).collect()).unwrap_or_default();
-        for extra in well_known_bin_dirs(&self.home) {
-            if !dirs.contains(&extra) {
-                dirs.push(extra);
+        let mut dirs: Vec<PathBuf> = Vec::new();
+        let from_env = self.env.get("PATH").map(|p| p.split(sep).map(PathBuf::from).collect::<Vec<_>>());
+        for dir in from_env.unwrap_or_default().into_iter().chain(well_known_bin_dirs(&self.home)) {
+            if !dir.as_os_str().is_empty() && !dirs.contains(&dir) {
+                dirs.push(dir);
             }
         }
         self.path = dirs;
@@ -309,6 +309,18 @@ mod tests {
         let mut win = Cx::test(home, Os::Windows);
         win.set_env("APPDATA", "C:\\Users\\x\\AppData\\Roaming");
         assert_eq!(win.config_dir(), PathBuf::from("C:\\Users\\x\\AppData\\Roaming"));
+    }
+
+    #[test]
+    fn path_is_deduplicated_in_order() {
+        let mut cx = Cx::test(Path::new("/tmp/home"), Os::Linux);
+        cx.set_env("PATH", "/usr/bin:/bin:/usr/bin::/bin:/opt/x");
+        let joined = cx.path_string();
+        assert!(joined.starts_with("/usr/bin:/bin:/opt/x"), "{joined}");
+        let entries: Vec<&str> = joined.split(':').collect();
+        let unique: std::collections::HashSet<&str> = entries.iter().copied().collect();
+        assert_eq!(entries.len(), unique.len(), "duplicates in {joined}");
+        assert!(!entries.contains(&""));
     }
 
     #[test]

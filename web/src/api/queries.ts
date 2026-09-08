@@ -88,10 +88,10 @@ export function useSave() {
         mutationFn: ({ provider, label }: { provider: string; label?: string }) =>
             api.post<Account>(`/api/providers/${encodeURIComponent(provider)}/save`, { label }),
         onSuccess: (a) => {
-            notify.success(`Saved ${a.label}`)
+            notify.success(`Remembered ${a.label}`)
             invalidate()
         },
-        onError: (e: Error) => notify.error('Could not save the login', e.message),
+        onError: (e: Error) => notify.error('Could not remember the login', e.message),
     })
 }
 
@@ -104,14 +104,14 @@ export function useLogin() {
         onSuccess: (r) => {
             if (r.spawned) {
                 notify.info(
-                    'A terminal window was opened for the login',
-                    'Finish the login there; this page updates automatically.'
+                    'Sign in in the terminal that just opened',
+                    'When the CLI finishes, the new account appears here.'
                 )
             } else {
                 notify.warning('Run this in a terminal', r.command, 15000)
             }
         },
-        onError: (e: Error) => notify.error('Could not start the login', e.message),
+        onError: (e: Error) => notify.error('Could not open a terminal', e.message),
     })
 }
 
@@ -121,7 +121,7 @@ export function useRefresh() {
         mutationFn: (provider: string) =>
             api.post<ProviderStatus>(`/api/providers/${encodeURIComponent(provider)}/refresh`),
         onSuccess: invalidate,
-        onError: (e: Error) => notify.error('Refresh failed', e.message),
+        onError: (e: Error) => notify.error('Could not ask the CLI', e.message),
     })
 }
 
@@ -133,10 +133,10 @@ export function useRemove() {
                 `/api/accounts/${encodeURIComponent(provider)}/${encodeURIComponent(account)}`
             ),
         onSuccess: (a) => {
-            notify.success(`Removed ${a.label}`)
+            notify.success(`Forgot ${a.label}`)
             invalidate()
         },
-        onError: (e: Error) => notify.error('Remove failed', e.message),
+        onError: (e: Error) => notify.error('Could not forget the account', e.message),
     })
 }
 
@@ -157,7 +157,7 @@ export function useRename() {
                 { label }
             ),
         onSuccess: invalidate,
-        onError: (e: Error) => notify.error('Rename failed', e.message),
+        onError: (e: Error) => notify.error('Could not rename the account', e.message),
     })
 }
 

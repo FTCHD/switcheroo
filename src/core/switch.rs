@@ -102,7 +102,9 @@ impl Core {
                     Err(e) => warnings.push(Warning::warn("native-list", format!("{e:#}"))),
                 }
             }
-            warnings.extend(p.preflight(&self.cx));
+            // A running CLI only matters once there is a login to replace.
+            let live_now = live.is_some();
+            warnings.extend(p.preflight(&self.cx).into_iter().filter(|w| live_now || w.code != "running"));
         }
         let active_account = live.as_ref().and_then(|l| accounts.iter().find(|a| a.id == l.id).map(|a| a.id.clone()));
         ProviderStatus {

@@ -3,10 +3,11 @@ import { useProviders, useSaveSettings, useSettings } from '@/api/queries'
 import type { Settings } from '@/api/types'
 import { boot } from '@/boot'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
+import { PageHeader } from '@/shell/PageHeader'
+import { Panel, PanelRow } from '@/shell/Panel'
 
 export function SettingsPage() {
     const q = useSettings()
@@ -16,9 +17,11 @@ export function SettingsPage() {
     useEffect(() => {
         if (q.data && !draft) setDraft(q.data)
     }, [q.data, draft])
-    if (!draft) return <p className="text-muted-foreground">Loading…</p>
+
+    const dirty = draft && q.data && JSON.stringify(draft) !== JSON.stringify(q.data)
 
     const toggleHidden = (id: string, hidden: boolean) =>
+        draft &&
         setDraft({
             ...draft,
             hidden_providers: hidden
@@ -27,104 +30,141 @@ export function SettingsPage() {
         })
 
     return (
-        <div className="mx-auto max-w-2xl space-y-4">
-            <Card>
-                <CardHeader>
-                    <CardTitle>Secrets</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3 text-sm">
-                    <p>
-                        Saved credentials are stored in{' '}
-                        <b>{boot.vault || 'the OS credential store'}</b>. Metadata lives in{' '}
-                        <code>{boot.dataDir}</code>.
-                    </p>
-                    <div className="flex items-center gap-3">
-                        <Label htmlFor="vault">Backend</Label>
-                        <select
-                            id="vault"
-                            className="h-9 rounded-4xl border border-border bg-background px-3 text-sm"
-                            value={draft.vault}
-                            onChange={(e) =>
-                                setDraft({ ...draft, vault: e.target.value as Settings['vault'] })
-                            }
+        <>
+            <PageHeader
+                title="Settings"
+                description="How Switcheroo stores secrets, how it switches, and which CLIs it shows."
+                actions={
+                    draft && (
+                        <Button
+                            onClick={() => save.mutate(draft)}
+                            disabled={!dirty || save.isPending}
                         >
-                            <option value="auto">OS credential store (auto)</option>
-                            <option value="keychain">OS credential store</option>
-                            <option value="file">Plaintext file (0600)</option>
-                        </select>
-                        <span className="text-xs text-muted-foreground">
-                            Takes effect on the next start. Existing entries are not migrated.
-                        </span>
-                    </div>
-                </CardContent>
-            </Card>
+                            {save.isPending ? 'Saving…' : 'Save changes'}
+                        </Button>
+                    )
+                }
+            />
 
-            <Card>
-                <CardHeader>
-                    <CardTitle>Tray & switching</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                    <div className="flex items-center justify-between">
-                        <Label htmlFor="emails">Show emails in the tray menu</Label>
-                        <Switch
-                            id="emails"
-                            checked={draft.tray.show_emails}
-                            onCheckedChange={(v) =>
-                                setDraft({ ...draft, tray: { ...draft.tray, show_emails: v } })
-                            }
-                        />
-                    </div>
-                    <div className="flex items-center justify-between">
-                        <Label htmlFor="confirm">Ask before switching</Label>
-                        <Switch
-                            id="confirm"
-                            checked={draft.tray.confirm_switch}
-                            onCheckedChange={(v) =>
-                                setDraft({ ...draft, tray: { ...draft.tray, confirm_switch: v } })
-                            }
-                        />
-                    </div>
-                </CardContent>
-            </Card>
-
-            <Card>
-                <CardHeader>
-                    <CardTitle>Server</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                    <Label htmlFor="bind">Listen address (loopback only; blank = automatic)</Label>
-                    <Input
-                        id="bind"
-                        placeholder="127.0.0.1:20123"
-                        value={draft.bind ?? ''}
-                        onChange={(e) => setDraft({ ...draft, bind: e.target.value || null })}
-                    />
-                </CardContent>
-            </Card>
-
-            <Card>
-                <CardHeader>
-                    <CardTitle>Hidden providers</CardTitle>
-                </CardHeader>
-                <CardContent className="grid gap-2 sm:grid-cols-2">
-                    {(providers.data ?? []).map((p) => (
-                        <div key={p.info.id} className="flex items-center justify-between">
-                            <Label htmlFor={`hide-${p.info.id}`}>{p.info.name}</Label>
-                            <Switch
-                                id={`hide-${p.info.id}`}
-                                checked={draft.hidden_providers.includes(p.info.id)}
-                                onCheckedChange={(v) => toggleHidden(p.info.id, v)}
-                            />
+            {!draft && (
+                <Panel>
+                    {[0, 1, 2].map((i) => (
+                        <div key={i} className="px-6 py-4">
+                            <Skeleton className="h-4 w-1/3" />
                         </div>
                     ))}
-                </CardContent>
-            </Card>
+                </Panel>
+            )}
 
-            <div className="flex justify-end">
-                <Button onClick={() => save.mutate(draft)} disabled={save.isPending}>
-                    Save settings
-                </Button>
-            </div>
-        </div>
+            {draft && (
+                <>
+                    <Panel eyebrow="Secrets">
+                        <PanelRow
+                            label="Where remembered credentials go"
+                            description={
+                                <>
+                                    Currently{' '}
+                                    <b className="font-medium text-foreground">{boot.vault}</b>. A
+                                    change takes effect on the next start; existing entries are not
+                                    moved.
+                                </>
+                            }
+                            htmlFor="vault"
+                        >
+                            <select
+                                id="vault"
+                                className="h-9 rounded-4xl border border-border bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
+                                value={draft.vault}
+                                onChange={(e) =>
+                                    setDraft({
+                                        ...draft,
+                                        vault: e.target.value as Settings['vault'],
+                                    })
+                                }
+                            >
+                                <option value="auto">OS credential store (auto)</option>
+                                <option value="keychain">OS credential store</option>
+                                <option value="file">Plain file (0600)</option>
+                            </select>
+                        </PanelRow>
+                        <PanelRow
+                            label="State directory"
+                            description="Labels, timestamps and the cached identity per CLI. Never secrets."
+                        >
+                            <code className="font-mono text-[12px] text-muted-foreground break-all">
+                                {boot.dataDir}
+                            </code>
+                        </PanelRow>
+                    </Panel>
+
+                    <Panel eyebrow="Switching">
+                        <PanelRow
+                            label="Ask before switching"
+                            description="Show a confirmation in the web UI before a login is replaced."
+                            htmlFor="confirm"
+                        >
+                            <Switch
+                                id="confirm"
+                                checked={draft.tray.confirm_switch}
+                                onCheckedChange={(v) =>
+                                    setDraft({
+                                        ...draft,
+                                        tray: { ...draft.tray, confirm_switch: v },
+                                    })
+                                }
+                            />
+                        </PanelRow>
+                        <PanelRow
+                            label="Show emails in the tray menu"
+                            description="Off shows only the labels you gave accounts."
+                            htmlFor="emails"
+                        >
+                            <Switch
+                                id="emails"
+                                checked={draft.tray.show_emails}
+                                onCheckedChange={(v) =>
+                                    setDraft({ ...draft, tray: { ...draft.tray, show_emails: v } })
+                                }
+                            />
+                        </PanelRow>
+                    </Panel>
+
+                    <Panel eyebrow="Web UI">
+                        <PanelRow
+                            label="Listen address"
+                            description="Loopback only. Leave blank for a port that stays the same across restarts."
+                            htmlFor="bind"
+                        >
+                            <Input
+                                id="bind"
+                                placeholder="127.0.0.1:20123"
+                                className="w-56 font-mono text-base sm:text-sm"
+                                value={draft.bind ?? ''}
+                                onChange={(e) =>
+                                    setDraft({ ...draft, bind: e.target.value || null })
+                                }
+                            />
+                        </PanelRow>
+                    </Panel>
+
+                    <Panel eyebrow="CLIs shown">
+                        {(providers.data ?? []).map((p) => (
+                            <PanelRow
+                                key={p.info.id}
+                                label={p.info.name}
+                                description={p.installed ? p.installed.path : 'Not on this machine'}
+                                htmlFor={`show-${p.info.id}`}
+                            >
+                                <Switch
+                                    id={`show-${p.info.id}`}
+                                    checked={!draft.hidden_providers.includes(p.info.id)}
+                                    onCheckedChange={(v) => toggleHidden(p.info.id, !v)}
+                                />
+                            </PanelRow>
+                        ))}
+                    </Panel>
+                </>
+            )}
+        </>
     )
 }

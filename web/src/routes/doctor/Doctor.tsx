@@ -1,91 +1,149 @@
+import { CheckIcon, XIcon } from 'lucide-react'
+import { Link } from 'react-router'
 import { useDoctor } from '@/api/queries'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
+import { vaultName } from '@/lib/labels'
+import { cn } from '@/lib/ui'
+import { Monogram } from '@/routes/dashboard/Monogram'
+import { WarningList } from '@/routes/dashboard/WarningList'
+import { PageHeader } from '@/shell/PageHeader'
+import { Panel } from '@/shell/Panel'
+
+function Fact({ label, children }: { label: string; children: React.ReactNode }) {
+    return (
+        <div className="grid gap-1 px-6 py-3.5 sm:grid-cols-[11rem_1fr] sm:gap-6">
+            <dt className="text-sm text-muted-foreground">{label}</dt>
+            <dd className="min-w-0 font-mono text-[13px] break-all">{children}</dd>
+        </div>
+    )
+}
 
 export function DoctorPage() {
     const q = useDoctor()
-    if (q.isLoading) return <p className="text-muted-foreground">Running checks…</p>
-    if (q.error || !q.data) return <p className="text-destructive">{q.error?.message}</p>
-    const d = q.data
     return (
-        <div className="space-y-4">
-            <Card>
-                <CardHeader>
-                    <CardTitle>Environment</CardTitle>
-                </CardHeader>
-                <CardContent className="grid gap-1 text-sm sm:grid-cols-2">
-                    <div>Version</div>
-                    <div>{d.version}</div>
-                    <div>OS</div>
-                    <div>{d.os}</div>
-                    <div>Data dir</div>
-                    <div className="break-all">{d.data_dir}</div>
-                    <div>Vault</div>
-                    <div>
-                        {d.vault} {d.vault_ok ? '✓' : `✗ ${d.vault_error}`}
-                    </div>
-                    <div>PATH</div>
-                    <div className="break-all text-xs text-muted-foreground">
-                        {d.path.join(' : ')}
-                    </div>
-                </CardContent>
-            </Card>
-            <Card>
-                <CardHeader>
-                    <CardTitle>Providers</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <table className="w-full text-sm">
-                        <thead className="text-left text-muted-foreground">
-                            <tr>
-                                <th className="py-1 pr-3">Provider</th>
-                                <th className="py-1 pr-3">Binary</th>
-                                <th className="py-1 pr-3">Logged in</th>
-                                <th className="py-1 pr-3">Touches</th>
-                                <th className="py-1">Findings</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {d.providers.map((p) => (
-                                <tr key={p.info.id} className="border-t align-top">
-                                    <td className="py-2 pr-3">
-                                        {p.info.name}
-                                        <div className="text-xs text-muted-foreground">
-                                            {p.info.id} · {p.info.tier.kind}
+        <>
+            <PageHeader
+                title="Doctor"
+                description="Everything Switcheroo can see: where secrets go, which CLIs are on PATH, who they are signed in as, and anything that would make a switch silently do nothing."
+            />
+            {q.isLoading && (
+                <Panel>
+                    {[0, 1, 2, 3].map((i) => (
+                        <div key={i} className="px-6 py-4">
+                            <Skeleton className="h-4 w-1/2" />
+                        </div>
+                    ))}
+                </Panel>
+            )}
+            {q.error && <p className="text-destructive">{q.error.message}</p>}
+            {q.data && (
+                <>
+                    <Panel eyebrow="This machine">
+                        <dl className="divide-y divide-border/70">
+                            <Fact label="Switcheroo">
+                                v{q.data.version} · {q.data.os}
+                            </Fact>
+                            <Fact label="Secrets">
+                                <span className="inline-flex items-center gap-1.5">
+                                    {q.data.vault_ok ? (
+                                        <CheckIcon
+                                            className="size-3.5 text-primary"
+                                            strokeWidth={2.5}
+                                        />
+                                    ) : (
+                                        <XIcon
+                                            className="size-3.5 text-destructive"
+                                            strokeWidth={2.5}
+                                        />
+                                    )}
+                                    {vaultName(q.data.vault)}
+                                </span>
+                                {q.data.vault_error && (
+                                    <p className="mt-1 font-sans text-[13px] text-destructive text-pretty">
+                                        {q.data.vault_error}
+                                    </p>
+                                )}
+                            </Fact>
+                            <Fact label="State">{q.data.data_dir}</Fact>
+                            <Fact label="PATH">
+                                <details className="group">
+                                    <summary className="cursor-pointer list-none text-muted-foreground select-none hover:text-foreground">
+                                        {q.data.path.length} directories searched
+                                        <span className="ml-1 text-[11px] group-open:hidden">
+                                            · show
+                                        </span>
+                                        <span className="ml-1 hidden text-[11px] group-open:inline">
+                                            · hide
+                                        </span>
+                                    </summary>
+                                    <ul className="mt-2 space-y-0.5 text-muted-foreground">
+                                        {q.data.path.map((p) => (
+                                            <li key={p}>{p}</li>
+                                        ))}
+                                    </ul>
+                                </details>
+                            </Fact>
+                        </dl>
+                    </Panel>
+
+                    <Panel eyebrow="CLIs">
+                        {q.data.providers.map((p) => (
+                            <div
+                                key={p.info.id}
+                                className={cn(
+                                    'grid gap-x-6 gap-y-2 px-6 py-4 sm:grid-cols-[1fr_1fr_1fr]',
+                                    !p.installed && 'opacity-60'
+                                )}
+                            >
+                                <div className="flex items-center gap-3">
+                                    <Monogram id={p.info.id} size="sm" muted={!p.installed} />
+                                    <div className="min-w-0">
+                                        <Link
+                                            to={`/providers/${p.info.id}`}
+                                            className="text-sm font-medium hover:underline"
+                                        >
+                                            {p.info.name}
+                                        </Link>
+                                        <div className="text-[12px] text-muted-foreground">
+                                            {p.info.tier.kind}
+                                            {p.info.tier.kind === 'unsupported' &&
+                                                ` · ${p.info.tier.reason}`}
                                         </div>
-                                    </td>
-                                    <td className="py-2 pr-3 text-xs">
-                                        {p.installed ? (
-                                            <>
-                                                {p.installed.path}
-                                                <div className="text-muted-foreground">
-                                                    {p.installed.version}
-                                                </div>
-                                            </>
-                                        ) : (
-                                            <span className="text-muted-foreground">
-                                                not found ({p.info.binaries.join(', ')})
-                                            </span>
-                                        )}
-                                    </td>
-                                    <td className="py-2 pr-3">{p.live?.label ?? '—'}</td>
-                                    <td className="py-2 pr-3 text-xs">
-                                        {p.slots.map((s) => (
-                                            <div key={s}>{s}</div>
-                                        ))}
-                                    </td>
-                                    <td className="py-2 text-xs">
-                                        {p.warnings.map((w) => (
-                                            <div key={w.code + w.message}>
-                                                [{w.code}] {w.message}
+                                    </div>
+                                </div>
+                                <div className="min-w-0 font-mono text-[12px] break-all">
+                                    {p.installed ? (
+                                        <>
+                                            <div>{p.installed.path}</div>
+                                            <div className="text-muted-foreground tabular-nums">
+                                                {p.installed.version}
                                             </div>
-                                        ))}
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </CardContent>
-            </Card>
-        </div>
+                                        </>
+                                    ) : (
+                                        <span className="text-muted-foreground">
+                                            not found · {p.info.binaries.join(', ')}
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="min-w-0">
+                                    <div className="text-sm">
+                                        {p.live ? (
+                                            p.live.label
+                                        ) : p.installed ? (
+                                            <span className="text-muted-foreground">
+                                                not signed in
+                                            </span>
+                                        ) : (
+                                            <span className="text-muted-foreground/50">—</span>
+                                        )}
+                                    </div>
+                                    <WarningList warnings={p.warnings} className="mt-1.5" />
+                                </div>
+                            </div>
+                        ))}
+                    </Panel>
+                </>
+            )}
+        </>
     )
 }
