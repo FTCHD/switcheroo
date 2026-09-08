@@ -44,11 +44,7 @@ export function ProviderPage() {
 
             {q.data && (
                 <>
-                    <PageHeader
-                        eyebrow={strategyName(q.data.info.strategy)}
-                        title={q.data.info.name}
-                        description={q.data.info.notes}
-                    />
+                    <PageHeader title={q.data.info.name} description={q.data.info.notes} />
                     {q.data.installed ? (
                         <Panel>
                             <ProviderRow
@@ -78,6 +74,14 @@ export function ProviderPage() {
 
                     <Panel eyebrow="How it works">
                         <dl className="divide-y divide-border/70">
+                            <Detail label="Mechanism">
+                                {strategyName(q.data.info.strategy)}
+                                <p className="mt-1 text-[13px] text-muted-foreground text-pretty">
+                                    {q.data.info.strategy === 'native-switch'
+                                        ? 'The CLI keeps every account itself; Switcheroo only runs its switch command and stores nothing.'
+                                        : 'The current login is captured into your credential store and a remembered one is written back in its place.'}
+                                </p>
+                            </Detail>
                             <Detail label="Touches">
                                 <ul className="space-y-1 font-mono text-[13px] break-all">
                                     {q.data.slots.map((s) => (
