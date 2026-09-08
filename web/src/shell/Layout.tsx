@@ -4,7 +4,6 @@ import { useServerEvents } from '@/api/events'
 import { boot } from '@/boot'
 import { Button } from '@/components/ui/button'
 import { useTheme } from '@/hooks/use-theme'
-import { vaultName } from '@/lib/labels'
 import { cn } from '@/lib/ui'
 
 const nav = [
@@ -67,7 +66,7 @@ export function Layout() {
                     </nav>
                     <div className="ml-auto flex items-center gap-3">
                         <span className="hidden font-mono text-[12px] text-muted-foreground sm:inline">
-                            {boot.vault ? vaultName(boot.vault) : 'no vault'} · v{boot.version}
+                            v{boot.version}
                         </span>
                         <ThemeToggle />
                     </div>

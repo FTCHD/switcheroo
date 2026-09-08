@@ -4,7 +4,8 @@ import { useDoctor } from '@/api/queries'
 import { Skeleton } from '@/components/ui/skeleton'
 import { vaultName } from '@/lib/labels'
 import { cn } from '@/lib/ui'
-import { Monogram } from '@/routes/dashboard/Monogram'
+import { ProviderIcon } from '@/routes/dashboard/ProviderIcon'
+import { TierBadge } from '@/routes/dashboard/TierBadge'
 import { WarningList } from '@/routes/dashboard/WarningList'
 import { PageHeader } from '@/shell/PageHeader'
 import { Panel } from '@/shell/Panel'
@@ -115,18 +116,16 @@ export function DoctorPage() {
                                 )}
                             >
                                 <div className="flex items-center gap-3">
-                                    <Monogram id={p.info.id} size="sm" muted={!p.installed} />
+                                    <ProviderIcon id={p.info.id} size="sm" muted={!p.installed} />
                                     <div className="min-w-0">
-                                        <Link
-                                            to={`/providers/${p.info.id}`}
-                                            className="text-sm font-medium hover:underline"
-                                        >
-                                            {p.info.name}
-                                        </Link>
-                                        <div className="text-[12px] text-muted-foreground">
-                                            {p.info.tier.kind}
-                                            {p.info.tier.kind === 'unsupported' &&
-                                                ` · ${p.info.tier.reason}`}
+                                        <div className="flex items-center gap-2">
+                                            <Link
+                                                to={`/providers/${p.info.id}`}
+                                                className="text-sm font-medium hover:underline"
+                                            >
+                                                {p.info.name}
+                                            </Link>
+                                            <TierBadge tier={p.info.tier} />
                                         </div>
                                     </div>
                                 </div>

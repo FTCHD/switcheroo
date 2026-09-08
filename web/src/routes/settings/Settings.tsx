@@ -4,10 +4,24 @@ import type { Settings } from '@/api/types'
 import { boot } from '@/boot'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
+import { vaultName } from '@/lib/labels'
 import { PageHeader } from '@/shell/PageHeader'
 import { Panel, PanelRow } from '@/shell/Panel'
+
+const vaultOptions: Record<Settings['vault'], string> = {
+    auto: 'OS credential store (auto)',
+    keychain: 'OS credential store',
+    file: 'Plain file (0600)',
+}
 
 export function SettingsPage() {
     const q = useSettings()
@@ -64,28 +78,33 @@ export function SettingsPage() {
                             description={
                                 <>
                                     Currently{' '}
-                                    <b className="font-medium text-foreground">{boot.vault}</b>. A
-                                    change takes effect on the next start; existing entries are not
-                                    moved.
+                                    <b className="font-medium text-foreground">
+                                        {vaultName(boot.vault)}
+                                    </b>
+                                    . A change takes effect on the next start; existing entries are
+                                    not moved.
                                 </>
                             }
                             htmlFor="vault"
                         >
-                            <select
-                                id="vault"
-                                className="h-9 rounded-4xl border border-border bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
+                            <Select
                                 value={draft.vault}
-                                onChange={(e) =>
-                                    setDraft({
-                                        ...draft,
-                                        vault: e.target.value as Settings['vault'],
-                                    })
+                                items={vaultOptions}
+                                onValueChange={(v) =>
+                                    setDraft({ ...draft, vault: v as Settings['vault'] })
                                 }
                             >
-                                <option value="auto">OS credential store (auto)</option>
-                                <option value="keychain">OS credential store</option>
-                                <option value="file">Plain file (0600)</option>
-                            </select>
+                                <SelectTrigger id="vault" className="w-60">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {Object.entries(vaultOptions).map(([value, label]) => (
+                                        <SelectItem key={value} value={value}>
+                                            {label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         </PanelRow>
                         <PanelRow
                             label="State directory"

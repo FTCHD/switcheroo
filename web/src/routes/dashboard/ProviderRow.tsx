@@ -5,7 +5,7 @@ import type { ProviderStatus } from '@/api/types'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/ui'
 import { AccountChip } from './AccountChip'
-import { Monogram } from './Monogram'
+import { ProviderIcon } from './ProviderIcon'
 import { TierBadge } from './TierBadge'
 import { WarningList } from './WarningList'
 
@@ -123,7 +123,7 @@ export function ProviderRow({
                 className="flex items-center gap-4 px-6 py-3.5 motion-safe:animate-rise sm:px-7"
                 style={delay}
             >
-                <Monogram id={info.id} size="sm" muted />
+                <ProviderIcon id={info.id} size="sm" muted />
                 <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-1">
                     <Eyebrow status={status} linkTitle={linkTitle} />
                     <span className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -143,7 +143,7 @@ export function ProviderRow({
     return (
         <article className="p-6 motion-safe:animate-rise sm:px-7" style={delay}>
             <div className="flex items-start gap-5">
-                <Monogram id={info.id} />
+                <ProviderIcon id={info.id} />
                 <div className="min-w-0 flex-1">
                     <div className="flex items-center">
                         <Eyebrow status={status} linkTitle={linkTitle} />
