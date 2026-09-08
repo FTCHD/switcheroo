@@ -7,6 +7,24 @@ import { Panel } from '@/shell/Panel'
 import { ProviderIcon } from './ProviderIcon'
 import { ProviderRow } from './ProviderRow'
 
+/** Two or three figures on the title row: number in the heading face, quiet label beneath. */
+function HeaderStats({ stats }: { stats: { value: number; label: string }[] }) {
+    return (
+        <dl className="flex items-stretch divide-x divide-border/70 pb-1">
+            {stats.map((s) => (
+                <div key={s.label} className="px-5 text-right first:pl-0 last:pr-0">
+                    <dd className="font-heading text-[22px] leading-none font-semibold tracking-[-0.02em] tabular-nums">
+                        {s.value}
+                    </dd>
+                    <dt className="mt-1.5 font-heading text-[11px] font-semibold tracking-[0.1em] text-muted-foreground uppercase">
+                        {s.label}
+                    </dt>
+                </div>
+            ))}
+        </dl>
+    )
+}
+
 function RosterSkeleton() {
     return (
         <Panel>
@@ -37,10 +55,18 @@ export function Dashboard() {
         <>
             <PageHeader
                 title="Accounts"
-                description={
-                    providers.data
-                        ? `${installed.length} ${installed.length === 1 ? 'CLI' : 'CLIs'} on this machine, ${signedIn} signed in.`
-                        : 'Who each CLI on this machine is signed in as, and the accounts you can switch to.'
+                actions={
+                    providers.data && (
+                        <HeaderStats
+                            stats={[
+                                {
+                                    value: installed.length,
+                                    label: installed.length === 1 ? 'CLI' : 'CLIs',
+                                },
+                                { value: signedIn, label: 'signed in' },
+                            ]}
+                        />
+                    )
                 }
             />
 
