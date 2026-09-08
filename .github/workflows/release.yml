@@ -1,7 +1,9 @@
 name: release
 
-# Manual only for now. Run it from the Actions tab: on a tag it publishes a GitHub Release,
-# on a branch it just uploads the binaries as an artifact.
+# Manual only. Run it from the Actions tab: it builds every platform and creates (or refreshes)
+# a *draft* release named after the version in Cargo.toml with the binaries and checksums
+# attached. Review it on the Releases page and press Publish; GitHub creates the v<version>
+# tag on this commit at that moment.
 on:
   workflow_dispatch:
 
@@ -95,6 +97,10 @@ jobs:
     needs: binaries
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v5
+      - name: Version from Cargo.toml
+        id: version
+        run: echo "version=$(grep -m1 '^version = ' Cargo.toml | cut -d'"' -f2)" >> "$GITHUB_OUTPUT"
       - uses: actions/download-artifact@v7
         with:
           pattern: switcheroo-*
@@ -105,13 +111,12 @@ jobs:
           cd artifacts
           sha256sum switcheroo-* > SHA256SUMS
           cat SHA256SUMS
-      - uses: softprops/action-gh-release@v3
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Draft release v${{ steps.version.outputs.version }}
+        uses: softprops/action-gh-release@v3
         with:
-          files: artifacts/*
+          draft: true
+          tag_name: v${{ steps.version.outputs.version }}
+          name: Switcheroo v${{ steps.version.outputs.version }}
+          target_commitish: ${{ github.sha }}
           generate_release_notes: true
-      - uses: actions/upload-artifact@v6
-        if: "!startsWith(github.ref, 'refs/tags/')"
-        with:
-          name: release-bundle
-          path: artifacts/*
+          files: artifacts/*
