@@ -40,6 +40,9 @@ pub enum Tier {
 pub struct ProviderMeta {
     pub id: &'static str,
     pub name: &'static str,
+    /// Brand-derived accent, `#RRGGBB`, chosen to read on both light and dark surfaces. Used
+    /// for the provider's identity marks (icon, live dot, meters); never for actions.
+    pub color: &'static str,
     pub strategy: Strategy,
     pub tier: Tier,
     /// Binary names to look for on PATH (first found wins).
@@ -61,6 +64,7 @@ impl ProviderMeta {
         ProviderInfo {
             id: self.id.to_string(),
             name: self.name.to_string(),
+            color: self.color.to_string(),
             strategy: self.strategy,
             tier: match self.tier {
                 Tier::Supported => TierInfo::Supported,
@@ -208,4 +212,26 @@ pub fn default_preflight(meta: &ProviderMeta, cx: &Cx) -> Vec<Warning> {
         ));
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn every_provider_has_a_unique_id_and_a_hex_color() {
+        let all = all();
+        let mut ids: Vec<&str> = all.iter().map(|p| p.meta().id).collect();
+        ids.sort_unstable();
+        ids.dedup();
+        assert_eq!(ids.len(), all.len(), "duplicate provider ids");
+        for p in &all {
+            let c = p.meta().color;
+            assert!(
+                c.len() == 7 && c.starts_with('#') && c[1..].chars().all(|ch| ch.is_ascii_hexdigit()),
+                "{}: bad color {c}",
+                p.meta().id
+            );
+        }
+    }
 }

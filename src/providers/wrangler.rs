@@ -59,6 +59,7 @@ pub fn provider() -> Box<dyn Provider> {
     Box::new(SlotProvider {
         meta: ProviderMeta {
             id: "wrangler",
+            color: "#F38020",
             name: "Cloudflare Wrangler",
             strategy: Strategy::SlotSwap,
             tier: Tier::Supported,

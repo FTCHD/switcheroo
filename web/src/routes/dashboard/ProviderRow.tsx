@@ -10,13 +10,26 @@ import { TierBadge } from './TierBadge'
 import { UsageStrip } from './UsageStrip'
 import { WarningList } from './WarningList'
 
-function LiveDot({ off = false, className }: { off?: boolean; className?: string }) {
+function LiveDot({
+    off = false,
+    color,
+    className,
+}: {
+    off?: boolean
+    color?: string
+    className?: string
+}) {
+    const tint = color ? { backgroundColor: color } : undefined
     return (
         <span aria-hidden="true" className={cn('relative flex size-2.5 shrink-0', className)}>
             {!off && (
-                <span className="absolute inset-0 rounded-full bg-primary motion-safe:animate-live" />
+                <span
+                    style={tint}
+                    className="absolute inset-0 rounded-full bg-primary motion-safe:animate-live"
+                />
             )}
             <span
+                style={off ? undefined : tint}
                 className={cn(
                     'relative size-2.5 rounded-full',
                     off ? 'border border-border bg-transparent' : 'bg-primary'
@@ -127,7 +140,7 @@ export function ProviderRow({
                 className="flex items-center gap-4 px-6 py-3.5 motion-safe:animate-rise sm:px-7"
                 style={delay}
             >
-                <ProviderIcon id={info.id} size="sm" muted />
+                <ProviderIcon id={info.id} color={info.color} size="sm" muted />
                 <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-1">
                     <Eyebrow status={status} linkTitle={linkTitle} />
                     <WarningList warnings={status.warnings} className="basis-full" />
@@ -143,7 +156,7 @@ export function ProviderRow({
     return (
         <article className="p-6 motion-safe:animate-rise sm:px-7" style={delay}>
             <div className="flex items-start gap-5">
-                <ProviderIcon id={info.id} />
+                <ProviderIcon id={info.id} color={info.color} />
                 <div className="min-w-0 flex-1">
                     <div className="flex items-center">
                         <Eyebrow status={status} linkTitle={linkTitle} />
@@ -153,7 +166,7 @@ export function ProviderRow({
                     </div>
 
                     <div className="mt-2 flex items-start gap-3">
-                        <LiveDot off={!live} className="mt-[11px]" />
+                        <LiveDot off={!live} color={info.color} className="mt-[11px]" />
                         <div className="min-w-0">
                             {live ? (
                                 <>
@@ -176,6 +189,7 @@ export function ProviderRow({
 
                     <UsageStrip
                         providerId={info.id}
+                        color={info.color}
                         enabled={live !== null && info.supports_usage}
                         expanded={!linkTitle}
                     />

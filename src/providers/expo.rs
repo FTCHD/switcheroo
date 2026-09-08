@@ -19,6 +19,7 @@ pub fn provider() -> Box<dyn Provider> {
     Box::new(SlotProvider {
         meta: ProviderMeta {
             id: "expo",
+            color: "#4630EB",
             name: "Expo / EAS",
             strategy: Strategy::SlotSwap,
             tier: Tier::Experimental,

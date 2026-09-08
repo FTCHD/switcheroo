@@ -12,7 +12,11 @@ pub struct Response {
 }
 
 pub fn get_json(url: &str, headers: &[(&str, &str)]) -> Result<Response> {
+    // The OS TLS stack (Schannel / Security.framework / OpenSSL): no C to cross-compile and the
+    // machine's own root certificates, which matters behind corporate proxies.
+    let tls = ureq::tls::TlsConfig::builder().provider(ureq::tls::TlsProvider::NativeTls).build();
     let agent: ureq::Agent = ureq::Agent::config_builder()
+        .tls_config(tls)
         .timeout_global(Some(Duration::from_secs(12)))
         .http_status_as_error(false)
         .build()

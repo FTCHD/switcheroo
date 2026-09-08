@@ -51,6 +51,7 @@ pub fn provider() -> Box<dyn Provider> {
     Box::new(SlotProvider {
         meta: ProviderMeta {
             id: "vercel",
+            color: "#0070F3",
             name: "Vercel",
             strategy: Strategy::SlotSwap,
             tier: Tier::Supported,

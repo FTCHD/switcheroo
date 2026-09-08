@@ -24,6 +24,7 @@ pub fn provider() -> Box<dyn Provider> {
     Box::new(SlotProvider {
         meta: ProviderMeta {
             id: "gemini-cli",
+            color: "#4796E3",
             name: "Gemini CLI",
             strategy: Strategy::SlotSwap,
             tier: Tier::Experimental,

@@ -181,6 +181,7 @@ pub mod testing {
             meta: ProviderMeta {
                 id: "mock",
                 name: "Mock CLI",
+                color: "#888888",
                 strategy: Strategy::SlotSwap,
                 tier: Tier::Supported,
                 binaries: &[],

@@ -6,7 +6,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { humanizeAgo, humanizeUntil, thousands } from '@/lib/format'
 import { cn } from '@/lib/ui'
 
-function Meter({ item }: { item: UsageItem }) {
+function Meter({ item, color }: { item: UsageItem; color?: string }) {
     if (item.kind === 'text') {
         return (
             <div className="flex min-w-0 items-baseline gap-1.5 text-[13px]">
@@ -35,7 +35,10 @@ function Meter({ item }: { item: UsageItem }) {
                         'h-full rounded-full transition-[width] duration-500',
                         hot ? 'bg-destructive' : 'bg-primary'
                     )}
-                    style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
+                    style={{
+                        width: `${Math.min(100, Math.max(0, pct))}%`,
+                        ...(!hot && color ? { backgroundColor: color } : {}),
+                    }}
                 />
             </div>
             {(item.resets_at || item.detail) && (
@@ -53,10 +56,12 @@ function Meter({ item }: { item: UsageItem }) {
  */
 export function UsageStrip({
     providerId,
+    color,
     enabled,
     expanded = false,
 }: {
     providerId: string
+    color?: string
     enabled: boolean
     expanded?: boolean
 }) {
@@ -87,7 +92,7 @@ export function UsageStrip({
         <div className="mt-4">
             <div className="flex flex-wrap items-end gap-x-8 gap-y-3">
                 {q.data.items.map((item) => (
-                    <Meter key={item.label} item={item} />
+                    <Meter key={item.label} item={item} color={color} />
                 ))}
             </div>
             {expanded && (

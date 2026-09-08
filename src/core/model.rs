@@ -33,6 +33,7 @@ pub enum TierInfo {
 pub struct ProviderInfo {
     pub id: String,
     pub name: String,
+    pub color: String,
     pub strategy: Strategy,
     pub tier: TierInfo,
     pub binaries: Vec<String>,

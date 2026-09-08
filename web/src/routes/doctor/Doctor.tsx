@@ -116,7 +116,12 @@ export function DoctorPage() {
                                 )}
                             >
                                 <div className="flex items-center gap-3">
-                                    <ProviderIcon id={p.info.id} size="sm" muted={!p.installed} />
+                                    <ProviderIcon
+                                        id={p.info.id}
+                                        color={p.info.color}
+                                        size="sm"
+                                        muted={!p.installed}
+                                    />
                                     <div className="min-w-0">
                                         <div className="flex items-center gap-2">
                                             <Link

@@ -10,6 +10,8 @@ export type TierInfo =
 export interface ProviderInfo {
     id: string
     name: string
+    /** Brand accent (#RRGGBB) for the provider's identity marks. */
+    color: string
     strategy: Strategy
     tier: TierInfo
     binaries: string[]

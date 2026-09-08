@@ -33,11 +33,14 @@ const marks: Record<string, SimpleIcon> = {
 
 export function ProviderIcon({
     id,
+    color,
     size = 'md',
     muted = false,
     className,
 }: {
     id: string
+    /** Provider accent; the mark is drawn in it. Falls back to the text colour. */
+    color?: string
     size?: 'sm' | 'md'
     muted?: boolean
     className?: string
@@ -46,10 +49,12 @@ export function ProviderIcon({
     return (
         <span
             aria-hidden="true"
+            style={color ? { color } : undefined}
             className={cn(
-                'flex shrink-0 items-center justify-center select-none',
+                'flex shrink-0 items-center justify-center select-none transition-opacity duration-150',
                 size === 'sm' ? 'size-7' : 'size-11',
-                muted ? 'text-muted-foreground/45' : 'text-foreground/85',
+                !color && (muted ? 'text-muted-foreground/45' : 'text-foreground/85'),
+                color && muted && 'opacity-45',
                 className
             )}
         >

@@ -21,6 +21,7 @@ pub fn provider() -> Box<dyn Provider> {
     Box::new(Netlify {
         meta: ProviderMeta {
             id: "netlify",
+            color: "#00AD9F",
             name: "Netlify",
             strategy: Strategy::NativeSwitch,
             tier: Tier::Supported,

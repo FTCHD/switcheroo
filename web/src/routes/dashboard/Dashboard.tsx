@@ -91,7 +91,12 @@ export function Dashboard() {
                                     to={`/providers/${p.info.id}`}
                                     className="flex items-center gap-2 rounded-full border border-dashed border-border py-1 pr-3.5 pl-1 text-sm text-muted-foreground transition-colors duration-150 hover:border-foreground/30 hover:text-foreground"
                                 >
-                                    <ProviderIcon id={p.info.id} muted size="sm" />
+                                    <ProviderIcon
+                                        id={p.info.id}
+                                        color={p.info.color}
+                                        muted
+                                        size="sm"
+                                    />
                                     {p.info.name}
                                 </Link>
                             </li>

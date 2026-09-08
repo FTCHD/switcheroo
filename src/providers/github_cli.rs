@@ -22,6 +22,7 @@ pub fn provider() -> Box<dyn Provider> {
     Box::new(GithubCli {
         meta: ProviderMeta {
             id: "github-cli",
+            color: "#8250DF",
             name: "GitHub CLI",
             strategy: Strategy::NativeSwitch,
             tier: Tier::Supported,
