@@ -1,18 +1,8 @@
 <div align="center">
-
 <img src=".github/icon.png" alt="Switcheroo" width="120">
-
 </div>
 
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset=".github/accounts-dark.png">
-    <img alt="Switcheroo's Accounts page: each CLI on the machine, who it is signed in as, and the remembered accounts to switch to" src=".github/accounts-light.png" width="900">
-  </picture>
-</p>
-
 ### Switch the signed-in account of your CLIs.
-
 Work account, personal account, a client's account: most developer CLIs only hold one login at a time, so you end up signing out and back in all day. Switcheroo remembers each login in your OS credential store and puts the one you want back in a second, for Claude Code, Codex, Vercel, Wrangler, npm, Fly.io and more.
 
 It does not create profiles or config directories. It swaps the CLI's **live login**, so every terminal, editor integration and script that uses that CLI follows along. For CLIs that report it (Claude Code, Codex, GitHub CLI) it also shows how much of each account's allowance is used and when it resets, so you know which account to switch to.
@@ -24,8 +14,14 @@ switcheroo use claude-code work@acme.dev    # switch; the previous login is reme
 switcheroo tray                             # menu-bar quick switcher + web UI
 ```
 
-## Install
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset=".github/accounts-dark.png">
+    <img alt="Switcheroo's Accounts page: each CLI on the machine, who it is signed in as, and the remembered accounts to switch to" src=".github/accounts-light.png" width="900">
+  </picture>
+</p>
 
+## Install
 macOS and Linux:
 
 ```sh
@@ -46,13 +42,16 @@ cargo build --release          # → target/release/switcheroo
 ```
 
 ## Usage
+#### **On your laptop**
+Run `switcheroo tray` and keep it running: a menu-bar item with one submenu per CLI, click an account to switch. `switcheroo autostart enable` (or the "Start at login" toggle) opens it when you sign in to the machine, and "Open Switcheroo…" gets you the full web UI for renaming, forgetting, settings and diagnostics.
 
-- **On your laptop?** Run `switcheroo tray` and keep it running: a menu-bar item with one submenu per CLI, click an account to switch. `switcheroo autostart enable` (or the "Start at login" toggle) opens it when you sign in to the machine, and "Open Switcheroo…" gets you the full web UI for renaming, forgetting, settings and diagnostics.
-- **On a remote server?** No display needed: `switcheroo serve` runs the web UI on loopback, and an SSH tunnel (`ssh -L 20123:127.0.0.1:20123 host`, using the port it prints) puts it in your local browser.
-- **Prefer the terminal?** Everything is a `switcheroo` subcommand with `--json` output, so it scripts well: `switcheroo --help` or the Reference page lists them all.
+#### **On a remote server**
+No display needed: `switcheroo serve` runs the web UI on loopback, and an SSH tunnel (`ssh -L 20123:127.0.0.1:20123 host`, using the port it prints) puts it in your local browser.
+
+#### **Prefer the terminal?**
+Everything is a `switcheroo` subcommand with `--json` output, so it scripts well: `switcheroo --help` or the Reference page lists them all.
 
 ## Supported CLIs
-
 | CLI | Mechanism | What is touched |
 |---|---|---|
 | Claude Code | swap | keychain item `Claude Code-credentials` (macOS) or `~/.claude/.credentials.json`, plus `oauthAccount` in `~/.claude.json`; running sessions pick the change up |
@@ -70,8 +69,7 @@ cargo build --release          # → target/release/switcheroo
 `switcheroo providers` prints this list with the exact files for your OS. Only CLIs found on `PATH` are managed; a tool installed inside a single project (for example `wrangler` in a repo's `node_modules/.bin`) is not visible until it is installed globally or its directory is on `PATH`. Doctor explains this next to the list of directories searched.
 
 ## How a switch works
-
-1. Take a lock so the CLI and the tray never interleave.
+1. Acquire an exclusive lock so a terminal command and the tray never interleave.
 2. Read the live credential and re-remember it under the account that is currently signed in. Tokens rotate, so the remembered copy must always be the freshest one.
 3. Write the target account's credential into the slot.
 4. Ask the CLI who is signed in. On a mismatch, the previous login is restored.
@@ -79,14 +77,12 @@ cargo build --release          # → target/release/switcheroo
 Before switching, Switcheroo warns about anything that would make it a no-op: environment variables the CLI prefers over its stored login (`GH_TOKEN`, `CLOUDFLARE_API_TOKEN`, `VERCEL_TOKEN`, `ANTHROPIC_API_KEY`, …), a CLI that caches credentials at startup, or an unsupported storage mode such as Codex's keyring option.
 
 ## Security
-
 - Secrets live only in the OS credential store: macOS Keychain, Windows Credential Manager, or Linux Secret Service. `--vault file` opts into a 0600 JSON file for machines without one. Switcheroo's own `state.json` holds emails, labels and timestamps, never tokens.
 - On macOS the keychain is accessed through `/usr/bin/security`, the same tool Claude Code uses. Items created that way never trigger access prompts, and updating the binary does not break access.
 - The web UI listens on loopback only. Every mutation needs a per-launch session token in a custom header, which cross-site requests cannot supply, and the API never returns credential bytes.
 - Nothing leaves your machine. There is no telemetry and no network access beyond the CLIs' own `whoami` commands.
 
 ## Command reference
-
 | Command | What it does |
 |---|---|
 | `switcheroo` / `status [--refresh]` | Every detected CLI, who it is signed in as, remembered accounts |
@@ -103,7 +99,6 @@ Before switching, Switcheroo warns about anything that would make it a no-op: en
 Global: `--json`, `--vault auto|keychain|file`, `--data-dir DIR`, `-v`, `-q`. Exit codes: `0` ok, `1` error, `2` usage, `3` CLI not installed, `4` nothing signed in.
 
 ## Development
-
 ```sh
 cargo test                                          # Rust unit tests, incl. a real keychain round trip on macOS
 cd web && npm install && npm run dev                # Vite on :5173, proxies /api to :7777
@@ -113,5 +108,4 @@ cargo run -- serve --dev --bind 127.0.0.1:7777      # dev server with a fixed se
 The architecture, invariants and the checklist for adding a provider are in [`CLAUDE.md`](CLAUDE.md). A provider is one file under `src/providers/` built from a few slot adapters and an identity resolver, plus one line in the registry; the CLI, API, tray and web UI pick it up without changes.
 
 ## License
-
 [MIT](LICENSE)
