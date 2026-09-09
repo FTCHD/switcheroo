@@ -101,6 +101,14 @@ export interface Usage {
     fetched_at: string
 }
 
+export interface UpdateInfo {
+    current: string
+    latest: string
+    available: boolean
+    asset: string | null
+    checked_at: string
+}
+
 export interface Autostart {
     enabled: boolean
     supported: boolean

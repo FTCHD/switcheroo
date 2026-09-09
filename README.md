@@ -68,6 +68,10 @@ Everything is a `switcheroo` subcommand with `--json` output, so it scripts well
 
 `switcheroo providers` prints this list with the exact files for your OS. Only CLIs found on `PATH` are managed; a tool installed inside a single project (for example `wrangler` in a repo's `node_modules/.bin`) is not visible until it is installed globally or its directory is on `PATH`. Doctor explains this next to the list of directories searched.
 
+## Updates
+
+`switcheroo update` fetches the latest release for your platform, verifies it against the release's `SHA256SUMS`, replaces the binary in place and restarts the tray if it was running. `switcheroo update --check` only reports. The CLI, the web UI and the tray all point out a newer release until it is installed.
+
 ## How a switch works
 1. Acquire an exclusive lock so a terminal command and the tray never interleave.
 2. Read the live credential and re-remember it under the account that is currently signed in. Tokens rotate, so the remembered copy must always be the freshest one.

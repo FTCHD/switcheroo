@@ -104,6 +104,11 @@ export function CliPage() {
                     Serve only the web UI, on loopback. <code>--open</code> opens the browser once
                     it is listening. Useful on machines without a tray.
                 </CommandRow>
+                <CommandRow command="switcheroo update [--check]" example="switcheroo update">
+                    Install the latest release over this binary, verified against the release's
+                    checksums, and restart the tray if it was running. <code>--check</code> only
+                    reports. Every surface points out a newer release until it is installed.
+                </CommandRow>
                 <CommandRow
                     command="switcheroo autostart enable | disable | status"
                     example="switcheroo autostart enable"

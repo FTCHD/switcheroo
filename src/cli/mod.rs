@@ -121,6 +121,12 @@ pub enum Command {
     Tray,
     /// Open the web UI in the browser, starting the server if needed.
     Open,
+    /// Install the latest release over this binary (restarts the tray if it is running).
+    Update {
+        /// Only report whether a newer release exists.
+        #[arg(long)]
+        check: bool,
+    },
     /// Start the tray automatically when you log in.
     Autostart {
         #[command(subcommand)]
@@ -172,6 +178,12 @@ fn dispatch(cli: Cli) -> Result<i32> {
         return Ok(EXIT_OK);
     }
     let json = cli.json;
+    // Long-running or self-referential commands do not get the update nudge appended.
+    let nudge = !json
+        && !matches!(
+            cli.command,
+            Some(Command::Serve { .. }) | Some(Command::Tray) | Some(Command::Update { .. }) | Some(Command::Open)
+        );
     let command = cli.command.unwrap_or(Command::Status { refresh: false });
     let core = Core::open(CoreOpts { data_dir: cli.data_dir.clone(), vault: cli.vault, ..Default::default() })?;
     match command {
@@ -296,14 +308,36 @@ fn dispatch(cli: Cli) -> Result<i32> {
         }
         Command::Serve { bind, dev, open } => {
             let core = core_for_gui(cli.data_dir.clone(), cli.vault)?;
-            crate::server::run_blocking(core, crate::server::ServeOpts { bind, dev, open })?;
+            crate::server::run_blocking(core.clone(), crate::server::ServeOpts { bind, dev, open })?;
         }
         Command::Tray => {
             let core = core_for_gui(cli.data_dir.clone(), cli.vault)?;
             crate::tray::run(core)?;
         }
         Command::Open => {
-            crate::server::open_ui(core).context("opening the web UI")?;
+            crate::server::open_ui(core.clone()).context("opening the web UI")?;
+        }
+        Command::Update { check } => {
+            if check {
+                let info = core.update_status(true)?;
+                if json {
+                    output::json(&info)?;
+                } else if info.available {
+                    println!(
+                        "Update available: v{} (you have v{}). Run `switcheroo update`.",
+                        info.latest, info.current
+                    );
+                } else {
+                    println!("Up to date (v{}).", info.current);
+                }
+            } else {
+                let installed = core.install_update()?;
+                if json {
+                    output::json(&installed)?;
+                } else {
+                    println!("Installed Switcheroo v{} at {}", installed.version, installed.path.display());
+                }
+            }
         }
         Command::Autostart { action } => {
             let st = match action.unwrap_or(AutostartAction::Status) {
@@ -323,6 +357,15 @@ fn dispatch(cli: Cli) -> Result<i32> {
             }
         }
         Command::Completions { .. } => unreachable!(),
+    }
+    if nudge
+        && let Ok(info) = core.update_status(false)
+        && info.available
+    {
+        eprintln!(
+            "\nUpdate available: Switcheroo v{} (you have v{}). Run `switcheroo update`.",
+            info.latest, info.current
+        );
     }
     Ok(EXIT_OK)
 }

@@ -5,6 +5,7 @@ import { boot } from '@/boot'
 import { Button } from '@/components/ui/button'
 import { useTheme } from '@/hooks/use-theme'
 import { cn } from '@/lib/ui'
+import { UpdateBanner } from './UpdateBanner'
 
 const nav = [
     { to: '/', label: 'Accounts', end: true },
@@ -72,6 +73,7 @@ export function Layout() {
                     </div>
                 </div>
             </header>
+            <UpdateBanner />
             <main className="mx-auto max-w-5xl px-6 py-10">
                 <Outlet />
             </main>

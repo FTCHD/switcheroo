@@ -7,6 +7,7 @@ use std::collections::HashMap;
 
 use crate::core::model::{ProviderStatus, TierInfo, Usage};
 use crate::core::settings::Settings;
+use crate::core::update::UpdateInfo;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Action {
@@ -27,6 +28,8 @@ pub enum Action {
     Autostart {
         enable: bool,
     },
+    /// Install the latest release and relaunch.
+    Update,
     None,
 }
 
@@ -40,6 +43,7 @@ impl Action {
             (Some("switch"), Some(p), Some(a)) => Action::Switch { provider: p.to_string(), account: a.to_string() },
             (Some("save"), Some(p), _) => Action::Save { provider: p.to_string() },
             (Some("login"), Some(p), _) => Action::Login { provider: p.to_string() },
+            (Some("update"), _, _) => Action::Update,
             (Some("autostart"), Some("on"), _) => Action::Autostart { enable: false },
             (Some("autostart"), Some("off"), _) => Action::Autostart { enable: true },
             _ => Action::None,
@@ -61,9 +65,14 @@ pub fn build(
     settings: &Settings,
     autostart: bool,
     usage: &HashMap<String, Usage>,
+    update: Option<&UpdateInfo>,
     last_error: Option<&str>,
 ) -> Menu {
     let menu = Menu::new();
+    if let Some(u) = update {
+        let _ = menu.append(&MenuItem::with_id("update", format!("Update to Switcheroo v{}…", u.latest), true, None));
+        let _ = menu.append(&PredefinedMenuItem::separator());
+    }
     if let Some(err) = last_error {
         let _ = menu.append(&MenuItem::with_id("noop", format!("⚠ {}", truncate(err, 80)), false, None));
         let _ = menu.append(&PredefinedMenuItem::separator());
@@ -153,6 +162,7 @@ mod tests {
         assert_eq!(Action::parse("login:fly"), Action::Login { provider: "fly".into() });
         assert_eq!(Action::parse("open"), Action::Open);
         assert_eq!(Action::parse("autostart:on"), Action::Autostart { enable: false });
+        assert_eq!(Action::parse("update"), Action::Update);
         assert_eq!(Action::parse("autostart:off"), Action::Autostart { enable: true });
         assert_eq!(Action::parse("noop"), Action::None);
         assert_eq!(Action::parse("switch:x"), Action::None);

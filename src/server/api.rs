@@ -158,6 +158,37 @@ pub async fn put_settings(State(st): State<AppState>, Json(settings): Json<Setti
     .await
 }
 
+pub async fn get_update(State(st): State<AppState>, Query(q): Query<RefreshQuery>) -> ApiResult {
+    let core = st.core.clone();
+    let result = tokio::task::spawn_blocking(move || core.update_status(q.refresh))
+        .await
+        .map_err(|e| ApiError(anyhow::anyhow!("task failed: {e}")))?;
+    match result {
+        Ok(info) => Ok(Json(info).into_response()),
+        Err(e) => Ok((StatusCode::BAD_GATEWAY, Json(serde_json::json!({ "error": format!("{e:#}") }))).into_response()),
+    }
+}
+
+/// Install the latest release, answer, then relaunch this process on the new binary.
+pub async fn install_update(State(st): State<AppState>) -> ApiResult {
+    let core = st.core.clone();
+    let result = tokio::task::spawn_blocking(move || core.install_update())
+        .await
+        .map_err(|e| ApiError(anyhow::anyhow!("task failed: {e}")))?;
+    match result {
+        Ok(installed) => {
+            let server_file = st.core.dirs.server_file();
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_millis(800));
+                let _ = crate::core::fsutil::remove_opt(&server_file);
+                crate::core::update::relaunch();
+            });
+            Ok(Json(serde_json::json!({ "installed": installed.version, "restarting": true })).into_response())
+        }
+        Err(e) => Ok((StatusCode::BAD_GATEWAY, Json(serde_json::json!({ "error": format!("{e:#}") }))).into_response()),
+    }
+}
+
 pub async fn get_autostart(State(st): State<AppState>) -> ApiResult {
     blocking(st.core, move |c| c.autostart()).await
 }

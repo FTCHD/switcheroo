@@ -13,6 +13,7 @@ pub mod settings;
 pub mod state;
 pub mod switch;
 pub mod terminal;
+pub mod update;
 pub mod usage;
 
 use std::collections::HashMap;
@@ -42,6 +43,7 @@ pub struct Core {
     pub bus: Bus,
     detect_cache: Mutex<HashMap<&'static str, Option<Installed>>>,
     pub(crate) usage_cache: Mutex<HashMap<&'static str, (std::time::Instant, Usage)>>,
+    pub(crate) update_cache: Mutex<Option<update::UpdateInfo>>,
 }
 
 #[derive(Default)]
@@ -74,6 +76,7 @@ impl Core {
             bus: Bus::new(),
             detect_cache: Mutex::new(HashMap::new()),
             usage_cache: Mutex::new(HashMap::new()),
+            update_cache: Mutex::new(None),
         }))
     }
 

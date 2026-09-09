@@ -11,6 +11,7 @@ import type {
     ServerStatus,
     Settings,
     SwitchOutcome,
+    UpdateInfo,
     Usage,
 } from './types'
 
@@ -22,6 +23,7 @@ export const keys = {
     status: ['status'] as const,
     autostart: ['autostart'] as const,
     usage: (id: string) => ['usage', id] as const,
+    update: ['update'] as const,
 }
 
 const notify = {
@@ -183,6 +185,23 @@ export function useRefreshUsage(id: string) {
             api.get<Usage | null>(`/api/providers/${encodeURIComponent(id)}/usage?refresh=true`),
         onSuccess: (u) => qc.setQueryData(keys.usage(id), u),
         onError: (e: Error) => notify.error('Could not refresh usage', e.message),
+    })
+}
+
+export function useUpdate() {
+    return useQuery({
+        queryKey: keys.update,
+        queryFn: () => api.get<UpdateInfo>('/api/update'),
+        staleTime: 30 * 60_000,
+        refetchInterval: 60 * 60_000,
+        retry: false,
+    })
+}
+
+export function useInstallUpdate() {
+    return useMutation({
+        mutationFn: () => api.post<{ installed: string; restarting: boolean }>('/api/update'),
+        onError: (e: Error) => notify.error('Could not install the update', e.message),
     })
 }
 

@@ -45,4 +45,7 @@ impl AppDirs {
     pub fn server_file(&self) -> PathBuf {
         self.data.join("server.json")
     }
+    pub fn update_file(&self) -> PathBuf {
+        self.data.join("update-check.json")
+    }
 }

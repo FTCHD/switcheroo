@@ -26,6 +26,7 @@ pub enum UserEvent {
         providers: Vec<ProviderStatus>,
         autostart: bool,
         usage: std::collections::HashMap<String, Usage>,
+        update: Option<crate::core::update::UpdateInfo>,
     },
     /// Something changed; recompute statuses.
     Dirty,
@@ -130,10 +131,11 @@ fn run_loop(
                     spawn_status(core.clone(), proxy.clone());
                 }
             }
-            Event::UserEvent(UserEvent::Statuses { providers, autostart, usage }) => {
+            Event::UserEvent(UserEvent::Statuses { providers, autostart, usage, update }) => {
                 computing = false;
                 let settings = core.settings.read().map(|s| s.clone()).unwrap_or_default();
-                let menu = menu::build(&providers, &settings, autostart, &usage, last_error.as_deref());
+                let menu =
+                    menu::build(&providers, &settings, autostart, &usage, update.as_ref(), last_error.as_deref());
                 if let Some(t) = &tray {
                     t.set_menu(Some(Box::new(menu)));
                 }
@@ -163,7 +165,8 @@ fn run_loop(
                             let providers = core.status_all(true);
                             let autostart = core.autostart().map(|a| a.enabled).unwrap_or(false);
                             let usage = collect_usage(&core, &providers, true);
-                            let _ = proxy.send_event(UserEvent::Statuses { providers, autostart, usage });
+                            let update = core.update_status(true).ok().filter(|u| u.available);
+                            let _ = proxy.send_event(UserEvent::Statuses { providers, autostart, usage, update });
                         });
                     }
                     menu::Action::Quit => {
@@ -216,6 +219,21 @@ fn run_loop(
                             }
                         });
                     }
+                    menu::Action::Update => {
+                        last_error = None;
+                        let core = core.clone();
+                        let proxy = proxy.clone();
+                        let server_file = core.dirs.server_file();
+                        std::thread::spawn(move || match core.install_update() {
+                            Ok(_) => {
+                                let _ = crate::core::fsutil::remove_opt(&server_file);
+                                crate::core::update::relaunch();
+                            }
+                            Err(e) => {
+                                let _ = proxy.send_event(UserEvent::Error(format!("update: {e:#}")));
+                            }
+                        });
+                    }
                     menu::Action::Autostart { enable } => {
                         last_error = None;
                         let core = core.clone();
@@ -243,7 +261,8 @@ fn spawn_status(core: Arc<Core>, proxy: EventLoopProxy<UserEvent>) {
         let providers = core.status_all(false);
         let autostart = core.autostart().map(|a| a.enabled).unwrap_or(false);
         let usage = collect_usage(&core, &providers, false);
-        let _ = proxy.send_event(UserEvent::Statuses { providers, autostart, usage });
+        let update = core.update_status(false).ok().filter(|u| u.available);
+        let _ = proxy.send_event(UserEvent::Statuses { providers, autostart, usage, update });
     });
 }
 
