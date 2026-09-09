@@ -23,6 +23,7 @@ pub fn command(exe: &Path, data_dir: &Path) -> Vec<String> {
     vec![
         exe.to_string_lossy().into_owned(),
         "tray".to_string(),
+        "--foreground".to_string(),
         "--data-dir".to_string(),
         data_dir.to_string_lossy().into_owned(),
     ]
@@ -226,9 +227,9 @@ mod tests {
     #[test]
     fn desktop_entry_quotes_exec() {
         let d = desktop_entry(Path::new("/usr/local/bin/switcheroo"), Path::new("/home/x/.config/switcheroo"));
-        assert!(
-            d.contains("Exec=\"/usr/local/bin/switcheroo\" \"tray\" \"--data-dir\" \"/home/x/.config/switcheroo\"")
-        );
+        assert!(d.contains(
+            "Exec=\"/usr/local/bin/switcheroo\" \"tray\" \"--foreground\" \"--data-dir\" \"/home/x/.config/switcheroo\""
+        ));
         assert!(d.starts_with("[Desktop Entry]\n"));
     }
 }

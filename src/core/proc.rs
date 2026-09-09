@@ -1,6 +1,14 @@
 //! Process-table lookups used for the "CLI is running" warning.
 
-use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
+use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System};
+
+/// Whether a process with this pid exists (best effort).
+pub fn pid_alive(pid: u32) -> bool {
+    let mut sys = System::new();
+    let pid = Pid::from_u32(pid);
+    sys.refresh_processes_specifics(ProcessesToUpdate::Some(&[pid]), true, ProcessRefreshKind::nothing());
+    sys.process(pid).is_some()
+}
 
 pub fn any_running(names: &[&str]) -> bool {
     let mut sys = System::new();

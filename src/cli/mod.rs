@@ -117,8 +117,15 @@ pub enum Command {
         #[arg(long)]
         open: bool,
     },
-    /// Run the system tray (menu bar) quick switcher together with the web UI server.
-    Tray,
+    /// Run the system tray (menu bar) quick switcher with the web UI. Detaches into the background.
+    Tray {
+        /// Stay attached to this terminal (what the detached child and the autostart entry run).
+        #[arg(long)]
+        foreground: bool,
+        /// Stop the background tray.
+        #[arg(long)]
+        stop: bool,
+    },
     /// Open the web UI in the browser, starting the server if needed.
     Open,
     /// Install the latest release over this binary (restarts the tray if it is running).
@@ -182,7 +189,10 @@ fn dispatch(cli: Cli) -> Result<i32> {
     let nudge = !json
         && !matches!(
             cli.command,
-            Some(Command::Serve { .. }) | Some(Command::Tray) | Some(Command::Update { .. }) | Some(Command::Open)
+            Some(Command::Serve { .. })
+                | Some(Command::Tray { .. })
+                | Some(Command::Update { .. })
+                | Some(Command::Open)
         );
     let command = cli.command.unwrap_or(Command::Status { refresh: false });
     let core = Core::open(CoreOpts { data_dir: cli.data_dir.clone(), vault: cli.vault, ..Default::default() })?;
@@ -310,9 +320,36 @@ fn dispatch(cli: Cli) -> Result<i32> {
             let core = core_for_gui(cli.data_dir.clone(), cli.vault)?;
             crate::server::run_blocking(core.clone(), crate::server::ServeOpts { bind, dev, open })?;
         }
-        Command::Tray => {
-            let core = core_for_gui(cli.data_dir.clone(), cli.vault)?;
-            crate::tray::run(core)?;
+        Command::Tray { foreground, stop } => {
+            if stop {
+                match crate::tray::stop(&core)? {
+                    Some(pid) => println!("Stopped the tray (pid {pid})."),
+                    None => println!("The tray is not running."),
+                }
+            } else if foreground {
+                let core = core_for_gui(cli.data_dir.clone(), cli.vault)?;
+                crate::tray::run(core)?;
+            } else {
+                let vault = cli.vault.map(|v| match v {
+                    VaultChoice::Auto => "auto",
+                    VaultChoice::Keychain => "keychain",
+                    VaultChoice::File => "file",
+                });
+                match crate::tray::spawn_detached(&core, vault)? {
+                    crate::tray::Started::AlreadyRunning(info) => {
+                        println!("Switcheroo is already running in the background (pid {}).", info.pid);
+                        println!("Web UI: {}", info.url);
+                    }
+                    crate::tray::Started::Spawned(info) => {
+                        println!("Switcheroo is running in the background (pid {}).", info.pid);
+                        println!("Web UI: {}", info.url);
+                        println!(
+                            "Stop it with `switcheroo tray --stop`; logs in {}",
+                            core.dirs.data.join("tray.log").display()
+                        );
+                    }
+                }
+            }
         }
         Command::Open => {
             crate::server::open_ui(core.clone()).context("opening the web UI")?;
@@ -331,11 +368,20 @@ fn dispatch(cli: Cli) -> Result<i32> {
                     println!("Up to date (v{}).", info.current);
                 }
             } else {
+                let was_running = crate::server::running_server(&core).filter(|i| crate::core::proc::pid_alive(i.pid));
                 let installed = core.install_update()?;
                 if json {
                     output::json(&installed)?;
                 } else {
                     println!("Installed Switcheroo v{} at {}", installed.version, installed.path.display());
+                }
+                if was_running.is_some() {
+                    let _ = crate::tray::stop(&core);
+                    match crate::tray::spawn_detached(&core, None) {
+                        Ok(_) if !json => println!("Restarted the tray on the new version."),
+                        Err(e) if !json => println!("The tray was stopped but could not be restarted: {e:#}"),
+                        _ => {}
+                    }
                 }
             }
         }

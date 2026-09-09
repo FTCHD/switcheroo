@@ -2,9 +2,12 @@
 //! event loop owns the main thread; a tokio runtime on another thread runs the server; all
 //! account operations run on worker threads and report back through the event loop proxy.
 
+mod daemon;
 mod icon;
 mod menu;
 mod platform;
+
+pub use daemon::{Started, spawn_detached, stop};
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -48,6 +51,28 @@ pub fn run(core: Arc<Core>) -> Result<()> {
     });
     log::info!("web UI at {}", info.url);
     let url = info.url.clone();
+
+    // `switcheroo tray --stop` (SIGTERM) and Ctrl-C: drop server.json, then exit.
+    {
+        let server_file = core.dirs.server_file();
+        rt.spawn(async move {
+            #[cfg(unix)]
+            {
+                let mut term =
+                    tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()).expect("SIGTERM handler");
+                tokio::select! {
+                    _ = tokio::signal::ctrl_c() => {}
+                    _ = term.recv() => {}
+                }
+            }
+            #[cfg(not(unix))]
+            {
+                let _ = tokio::signal::ctrl_c().await;
+            }
+            let _ = crate::core::fsutil::remove_opt(&server_file);
+            std::process::exit(0);
+        });
+    }
 
     let event_loop = EventLoopBuilder::<UserEvent>::with_user_event().build();
     #[cfg(target_os = "macos")]

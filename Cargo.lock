@@ -3024,6 +3024,7 @@ dependencies = [
  "futures-util",
  "image",
  "keyring-core",
+ "libc",
  "log",
  "mime_guess",
  "notify",

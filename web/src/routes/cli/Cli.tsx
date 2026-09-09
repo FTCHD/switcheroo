@@ -93,9 +93,14 @@ export function CliPage() {
             </Panel>
 
             <Panel eyebrow="Running the app">
-                <CommandRow command="switcheroo tray" example="switcheroo tray">
-                    Start the menu-bar quick switcher together with this web UI. Keep it running;
-                    the menu updates when you switch from a terminal too.
+                <CommandRow
+                    command="switcheroo tray [--foreground | --stop]"
+                    example="switcheroo tray"
+                >
+                    Start the menu-bar quick switcher together with this web UI. It detaches and
+                    keeps running after you close the terminal; the menu updates when you switch
+                    from a terminal too. <code>--stop</code> ends it, <code>--foreground</code>{' '}
+                    keeps it attached.
                 </CommandRow>
                 <CommandRow
                     command="switcheroo serve [--bind HOST:PORT]"
