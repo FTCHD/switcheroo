@@ -15,6 +15,35 @@ use crate::core::model::SecretBlob;
 const SECURITY: &str = "/usr/bin/security";
 const ERR_SEC_ITEM_NOT_FOUND: i32 = 44;
 
+/// `security -i` reads one line into a 4096-byte buffer. A longer line is still executed,
+/// truncated, and then reported as an error. The password bytes are the truncated part.
+pub const SECURITY_STDIN_MAX: usize = 4096;
+
+#[derive(Debug)]
+pub enum AddPasswordError {
+    /// The stdin line would exceed [`SECURITY_STDIN_MAX`]. `security` was not started.
+    TooLarge,
+    /// `security` ran and rejected the command. The item may already hold a truncated password.
+    Failed,
+}
+
+impl std::fmt::Display for AddPasswordError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            AddPasswordError::TooLarge => "keychain item is too large to update through /usr/bin/security",
+            AddPasswordError::Failed => "security add-generic-password failed",
+        })
+    }
+}
+
+impl std::error::Error for AddPasswordError {}
+
+/// The `security -i` command that stores `data`, including the trailing newline.
+pub fn add_generic_password_line(service: &str, account: &str, label: &str, data: &[u8]) -> String {
+    let hex: String = data.iter().map(|b| format!("{b:02x}")).collect();
+    format!("add-generic-password -U -a {} -s {} -l {} -X {}\n", quote(account), quote(service), quote(label), hex)
+}
+
 pub fn find_generic_password(service: &str, account: &str) -> Result<Option<Vec<u8>>> {
     let out = Command::new(SECURITY)
         .args(["find-generic-password", "-s", service, "-a", account, "-w"])
@@ -38,23 +67,30 @@ pub fn find_generic_password(service: &str, account: &str) -> Result<Option<Vec<
     }
 }
 
-pub fn add_generic_password(service: &str, account: &str, label: &str, data: &[u8]) -> Result<()> {
-    let hex: String = data.iter().map(|b| format!("{b:02x}")).collect();
-    let line =
-        format!("add-generic-password -U -a {} -s {} -l {} -X {}\n", quote(account), quote(service), quote(label), hex);
+pub fn add_generic_password(service: &str, account: &str, label: &str, data: &[u8]) -> Result<(), AddPasswordError> {
+    let line = add_generic_password_line(service, account, label, data);
+    if line.len() > SECURITY_STDIN_MAX {
+        return Err(AddPasswordError::TooLarge);
+    }
     let mut child = Command::new(SECURITY)
         .arg("-i")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .context("running security -i")?;
-    child.stdin.take().context("stdin")?.write_all(line.as_bytes())?;
-    let out = child.wait_with_output()?;
+        .map_err(|_| AddPasswordError::Failed)?;
+    child
+        .stdin
+        .take()
+        .ok_or(AddPasswordError::Failed)?
+        .write_all(line.as_bytes())
+        .map_err(|_| AddPasswordError::Failed)?;
+    let out = child.wait_with_output().map_err(|_| AddPasswordError::Failed)?;
     let combined = format!("{}{}", String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr));
-    // In interactive mode the exit status is 0 even when a command fails; errors are printed.
+    // Interactive mode exits 0 even when a command fails; the failure is printed.
+    // The text is not returned: it is the tail of the password.
     if !out.status.success() || combined.contains("security:") || combined.contains("error") {
-        return Err(anyhow!("security add-generic-password failed: {}", combined.trim()));
+        return Err(AddPasswordError::Failed);
     }
     Ok(())
 }
@@ -112,7 +148,8 @@ impl Vault for MacKeychainVault {
 
     fn put(&self, key: &str, label: &str, blob: &SecretBlob) -> Result<()> {
         let label = format!("Switcheroo — {label}");
-        add_generic_password(self.service, key, &label, blob.as_bytes())
+        add_generic_password(self.service, key, &label, blob.as_bytes())?;
+        Ok(())
     }
 
     fn delete(&self, key: &str) -> Result<()> {
@@ -134,6 +171,27 @@ mod tests {
     #[test]
     fn quoting() {
         assert_eq!(quote(r#"a "b" \c"#), r#""a \"b\" \\c""#);
+    }
+
+    #[test]
+    fn stdin_line_refuses_past_4096_without_including_the_password() {
+        let small = add_generic_password_line("Claude Code-credentials", "user", "Claude Code-credentials", &[0u8; 16]);
+        assert!(small.len() <= SECURITY_STDIN_MAX);
+        assert!(small.ends_with('\n'));
+
+        let big =
+            add_generic_password_line("Claude Code-credentials", "user", "Claude Code-credentials", &[0xab; 2500]);
+        assert!(big.len() > SECURITY_STDIN_MAX);
+        assert!(!exceeds("x".repeat(4096).as_str()));
+        assert!(exceeds("x".repeat(4097).as_str()));
+
+        let err = AddPasswordError::TooLarge;
+        assert_eq!(err.to_string(), "keychain item is too large to update through /usr/bin/security");
+        assert!(!AddPasswordError::Failed.to_string().contains("ab"));
+    }
+
+    fn exceeds(line: &str) -> bool {
+        line.len() > SECURITY_STDIN_MAX
     }
 
     /// Real keychain round trip under a throwaway service name. Skipped when the keychain is

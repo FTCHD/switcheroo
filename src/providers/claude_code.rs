@@ -1,9 +1,9 @@
-//! Claude Code (`claude`). Live slot: the OAuth blob (macOS keychain item
-//! `Claude Code-credentials` / `~/.claude/.credentials.json` elsewhere) plus the `oauthAccount`
-//! key of `~/.claude.json`, which Claude Code shows as the logged-in account. Both move together.
-//! Claude Code hot-reloads credentials, so no restart is needed.
+//! Claude Code (`claude`). On macOS the Keychain item is used whenever it exists; the
+//! credentials file is the slot only when the item is absent; `oauthAccount` moves with the
+//! login; other keys in both stores stay. Claude Code hot-reloads credentials, so no restart
+//! is needed.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
 use chrono::{DateTime, Utc};
@@ -11,6 +11,11 @@ use serde_json::Value;
 
 use super::identity::{Cmd, IdentityResolver, Parse};
 use super::slot_provider::SlotProvider;
+#[cfg(target_os = "macos")]
+use super::slots::KeychainJsonKeysSlot;
+#[cfg(target_os = "macos")]
+use super::slots::json_merge::classify_probe;
+use super::slots::json_merge::{CredentialBackend, KeychainProbe, credential_backend};
 use super::slots::{FileSlot, JsonKeysSlot, Slot};
 use super::util::http;
 use super::util::text::tilde;
@@ -18,6 +23,9 @@ use super::{Provider, ProviderMeta, Tier};
 use crate::core::cx::{Cx, Os};
 use crate::core::model::{Strategy, Usage, UsageItem, Warning};
 
+/// Live login for the default config dir. Claude Code appends `-<hash>` only when
+/// `CLAUDE_CONFIG_DIR` is set; that layout is already a preflight warning, and suffixed
+/// items are out of scope.
 #[cfg(target_os = "macos")]
 pub const KEYCHAIN_SERVICE: &str = "Claude Code-credentials";
 
@@ -31,24 +39,60 @@ fn credentials_file(cx: &Cx) -> PathBuf {
 
 fn slots(cx: &Cx) -> Vec<Box<dyn Slot>> {
     let creds = credentials_file(cx);
-    let credential_slot: Box<dyn Slot> = if cx.os() == Os::Mac && !creds.exists() {
-        #[cfg(target_os = "macos")]
-        {
-            let account = cx.env("USER").map(str::to_string).unwrap_or_else(whoami);
-            Box::new(super::slots::KeychainItemSlot::new(KEYCHAIN_SERVICE, &account))
-        }
-        #[cfg(not(target_os = "macos"))]
-        {
-            Box::new(FileSlot::new(creds.clone(), tilde(&creds, cx.home())))
-        }
-    } else {
-        Box::new(FileSlot::new(creds.clone(), tilde(&creds, cx.home())))
+    let credential_slot: Box<dyn Slot> = match choose_backend(cx) {
+        CredentialBackend::File => file_credential_slot(cx, &creds),
+        CredentialBackend::Keychain => keychain_credential_slot(cx, &creds),
     };
     let claude_json = cx.home().join(".claude.json");
     vec![
         credential_slot,
         Box::new(JsonKeysSlot::new(claude_json.clone(), &["oauthAccount"], tilde(&claude_json, cx.home()))),
     ]
+}
+
+fn file_credential_slot(cx: &Cx, creds: &Path) -> Box<dyn Slot> {
+    Box::new(FileSlot::new(creds.to_path_buf(), tilde(creds, cx.home())))
+}
+
+#[cfg(target_os = "macos")]
+fn keychain_credential_slot(cx: &Cx, _creds: &Path) -> Box<dyn Slot> {
+    Box::new(KeychainJsonKeysSlot::new(KEYCHAIN_SERVICE, &keychain_account(cx), &["claudeAiOauth"]))
+}
+
+#[cfg(not(target_os = "macos"))]
+fn keychain_credential_slot(cx: &Cx, creds: &Path) -> Box<dyn Slot> {
+    // This build has no `security` binary. Backend selection already forces the file.
+    file_credential_slot(cx, creds)
+}
+
+/// macOS probes the bare item only when commands are allowed (`Cx::test` never is). A non-mac
+/// build cannot call `security`, so it treats the item as absent and uses the file.
+fn choose_backend(cx: &Cx) -> CredentialBackend {
+    match cx.os() {
+        Os::Mac if cx.commands_allowed() => {
+            #[cfg(target_os = "macos")]
+            {
+                credential_backend(true, probe_bare_item(cx))
+            }
+            #[cfg(not(target_os = "macos"))]
+            {
+                credential_backend(true, KeychainProbe::Absent)
+            }
+        }
+        Os::Mac => credential_backend(true, KeychainProbe::Absent),
+        _ => CredentialBackend::File,
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn probe_bare_item(cx: &Cx) -> KeychainProbe {
+    let found = crate::vault::macos_security::find_generic_password(KEYCHAIN_SERVICE, &keychain_account(cx));
+    classify_probe(found)
+}
+
+#[cfg(target_os = "macos")]
+fn keychain_account(cx: &Cx) -> String {
+    cx.env("USER").map(str::to_string).unwrap_or_else(whoami)
 }
 
 #[cfg(target_os = "macos")]
@@ -70,7 +114,21 @@ fn preflight(cx: &Cx) -> Vec<Warning> {
             "CLAUDE_CONFIG_DIR is set; Claude Code keys its keychain entry to that directory, which Switcheroo does not support",
         ));
     }
+    if let Some(warning) = credentials_file_warning(choose_backend(cx), credentials_file(cx).exists()) {
+        w.push(warning);
+    }
     w
+}
+
+fn credentials_file_warning(backend: CredentialBackend, file_exists: bool) -> Option<Warning> {
+    if backend == CredentialBackend::Keychain && file_exists {
+        Some(Warning::warn(
+            "credentials-file",
+            "~/.claude/.credentials.json is left untouched because the Keychain item exists",
+        ))
+    } else {
+        None
+    }
 }
 
 // Claude's OAuth usage endpoint is internal (the same one the Claude Code CLI uses); best effort.
@@ -208,7 +266,7 @@ pub fn provider() -> Box<dyn Provider> {
             process_names: &[],
             env_shadow: &["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN"],
             restart_hint: None,
-            notes: "Swaps the OAuth credential (macOS keychain item \"Claude Code-credentials\", or ~/.claude/.credentials.json) together with the oauthAccount entry in ~/.claude.json. Running sessions pick the new login up automatically.",
+            notes: "On macOS the Keychain item \"Claude Code-credentials\" is used whenever it exists; ~/.claude/.credentials.json is the slot only when the item is absent. oauthAccount in ~/.claude.json moves with the login; other keys in both stores stay. Running sessions pick the new login up automatically.",
             login: &["claude", "auth", "login"],
         },
         slots,
@@ -257,7 +315,7 @@ mod tests {
         .unwrap();
         std::fs::write(
             dir.path().join(".claude.json"),
-            r#"{"numStartups":5,"oauthAccount":{"accountUuid":"u1","emailAddress":"A@Example.com","organizationName":"Org A","organizationRole":"admin","billingType":"stripe_subscription"},"projects":{"/x":{}}}"#,
+            r#"{"numStartups":5,"userID":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","oauthAccount":{"accountUuid":"u1","emailAddress":"A@Example.com","organizationName":"Org A","organizationRole":"admin","billingType":"stripe_subscription"},"projects":{"/x":{}}}"#,
         )
         .unwrap();
         let p = provider();
@@ -271,7 +329,7 @@ mod tests {
             .unwrap();
         std::fs::write(
             dir.path().join(".claude.json"),
-            r#"{"numStartups":6,"oauthAccount":{"emailAddress":"b@example.com"}}"#,
+            r#"{"numStartups":6,"userID":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","oauthAccount":{"emailAddress":"b@example.com"},"projects":{"/x":{}}}"#,
         )
         .unwrap();
         assert_eq!(p.live_identity(&cx).unwrap().unwrap().id, "b@example.com");
@@ -279,6 +337,8 @@ mod tests {
         let cj: serde_json::Value =
             serde_json::from_slice(&std::fs::read(dir.path().join(".claude.json")).unwrap()).unwrap();
         assert_eq!(cj["numStartups"], 6);
+        assert_eq!(cj["projects"]["/x"], serde_json::json!({}));
+        assert_eq!(cj["userID"], "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
         assert_eq!(cj["oauthAccount"]["emailAddress"], "A@Example.com");
         let creds = std::fs::read_to_string(dir.path().join(".claude/.credentials.json")).unwrap();
         assert!(creds.contains("sk-ant-oat01-A"));
@@ -334,5 +394,28 @@ mod tests {
         let w = provider().preflight(&cx);
         assert!(w.iter().any(|w| w.code == "config-dir"));
         assert_eq!(credentials_file(&cx), PathBuf::from("/elsewhere/.credentials.json"));
+    }
+
+    #[test]
+    fn linux_preflight_does_not_warn_about_the_credentials_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let cx = Cx::test(dir.path(), Os::Linux);
+        std::fs::create_dir_all(dir.path().join(".claude")).unwrap();
+        std::fs::write(dir.path().join(".claude/.credentials.json"), "{}").unwrap();
+        let w = provider().preflight(&cx);
+        assert!(w.iter().all(|w| w.code != "credentials-file"));
+    }
+
+    #[test]
+    fn credentials_file_warning_only_when_keychain_owns_the_login() {
+        let warning = credentials_file_warning(CredentialBackend::Keychain, true).expect("warning");
+        assert_eq!(warning.code, "credentials-file");
+        assert!(
+            warning.message.contains("left untouched") && warning.message.contains("Keychain item exists"),
+            "{}",
+            warning.message
+        );
+        assert!(credentials_file_warning(CredentialBackend::File, true).is_none());
+        assert!(credentials_file_warning(CredentialBackend::Keychain, false).is_none());
     }
 }

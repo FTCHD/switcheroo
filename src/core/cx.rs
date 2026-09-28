@@ -86,6 +86,11 @@ impl Cx {
         self.os
     }
 
+    /// `false` for `Cx::test`. Callers must not spawn processes, including `security`, when this is false.
+    pub fn commands_allowed(&self) -> bool {
+        self.commands_allowed
+    }
+
     pub fn home(&self) -> &Path {
         &self.home
     }

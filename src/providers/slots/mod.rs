@@ -3,8 +3,11 @@
 
 pub mod file;
 pub mod json_keys;
+pub mod json_merge;
 #[cfg(target_os = "macos")]
 pub mod keychain_item;
+#[cfg(target_os = "macos")]
+pub mod keychain_json_keys;
 pub mod lines;
 pub mod locked;
 
@@ -13,7 +16,10 @@ use anyhow::Result;
 pub use file::FileSlot;
 pub use json_keys::JsonKeysSlot;
 #[cfg(target_os = "macos")]
+#[allow(unused_imports)]
 pub use keychain_item::KeychainItemSlot;
+#[cfg(target_os = "macos")]
+pub use keychain_json_keys::KeychainJsonKeysSlot;
 pub use lines::LinesSlot;
 pub use locked::LockedSlot;
 
