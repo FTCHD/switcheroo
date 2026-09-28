@@ -1,7 +1,7 @@
 //! Claude Code (`claude`). Live slot: the OAuth blob (macOS keychain item
 //! `Claude Code-credentials` / `~/.claude/.credentials.json` elsewhere) plus the `oauthAccount`
 //! key of `~/.claude.json`, which Claude Code shows as the logged-in account. Both move together.
-//! Claude Code hot-reloads credentials, so no restart is needed.
+//! A switch is refused while `claude` is running; a quit session picks up the swapped login.
 
 use std::path::PathBuf;
 
@@ -205,10 +205,11 @@ pub fn provider() -> Box<dyn Provider> {
             strategy: Strategy::SlotSwap,
             tier: Tier::Supported,
             binaries: &["claude"],
-            process_names: &[],
+            process_names: &["claude"],
+            running_blocks_switch: true,
             env_shadow: &["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN"],
             restart_hint: None,
-            notes: "Swaps the OAuth credential (macOS keychain item \"Claude Code-credentials\", or ~/.claude/.credentials.json) together with the oauthAccount entry in ~/.claude.json. Running sessions pick the new login up automatically.",
+            notes: "Swaps the OAuth credential (macOS keychain item \"Claude Code-credentials\", or ~/.claude/.credentials.json) together with the oauthAccount entry in ~/.claude.json. A switch is refused while claude is running; a quit session picks up the swapped login.",
             login: &["claude", "auth", "login"],
         },
         slots,

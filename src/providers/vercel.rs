@@ -57,6 +57,7 @@ pub fn provider() -> Box<dyn Provider> {
             tier: Tier::Supported,
             binaries: &["vercel"],
             process_names: &[],
+            running_blocks_switch: false,
             env_shadow: &["VERCEL_TOKEN"],
             restart_hint: None,
             notes: "Swaps the token in the global auth.json and the currentTeam scope in config.json. The username comes from `vercel whoami` (network) when a login is saved.",

@@ -49,6 +49,8 @@ pub struct Cx {
     path: Vec<PathBuf>,
     os: Os,
     commands_allowed: bool,
+    /// Process names injected by tests. Empty in real contexts.
+    assumed_running: Vec<String>,
 }
 
 impl Cx {
@@ -57,7 +59,8 @@ impl Cx {
     pub fn from_process() -> Result<Cx> {
         let home = dirs::home_dir().context("no home directory")?;
         let env: HashMap<String, String> = std::env::vars().collect();
-        let mut cx = Cx { home, env, path: Vec::new(), os: Os::current(), commands_allowed: true };
+        let mut cx =
+            Cx { home, env, path: Vec::new(), os: Os::current(), commands_allowed: true, assumed_running: Vec::new() };
         cx.rebuild_path();
         Ok(cx)
     }
@@ -67,7 +70,7 @@ impl Cx {
     pub fn test(home: &Path, os: Os) -> Cx {
         let mut env = HashMap::new();
         env.insert("HOME".to_string(), home.to_string_lossy().into_owned());
-        Cx { home: home.to_path_buf(), env, path: Vec::new(), os, commands_allowed: false }
+        Cx { home: home.to_path_buf(), env, path: Vec::new(), os, commands_allowed: false, assumed_running: Vec::new() }
     }
 
     #[cfg(test)]
@@ -76,6 +79,12 @@ impl Cx {
         if key == "PATH" {
             self.rebuild_path();
         }
+    }
+
+    /// Replace the process names treated as running. Matching ignores ASCII case.
+    #[cfg(test)]
+    pub fn assume_running(&mut self, names: &[&str]) {
+        self.assumed_running = names.iter().map(|s| (*s).to_string()).collect();
     }
 
     pub fn env(&self, key: &str) -> Option<&str> {
@@ -226,7 +235,12 @@ impl Cx {
     }
 
     /// Whether any process with one of these names is running (best effort, never fatal).
+    /// Test-injected names are checked first, ASCII case-insensitively. An empty injection
+    /// list keeps the real check, which is skipped when commands are disabled.
     pub fn any_process_running(&self, names: &[&str]) -> bool {
+        if names.iter().any(|name| self.assumed_running.iter().any(|assumed| assumed.eq_ignore_ascii_case(name))) {
+            return true;
+        }
         if !self.commands_allowed || names.is_empty() {
             return false;
         }
@@ -321,6 +335,19 @@ mod tests {
         let unique: std::collections::HashSet<&str> = entries.iter().copied().collect();
         assert_eq!(entries.len(), unique.len(), "duplicates in {joined}");
         assert!(!entries.contains(&""));
+    }
+
+    #[test]
+    fn assumed_names_match_before_commands_are_allowed() {
+        let mut cx = Cx::test(Path::new("/tmp/home"), Os::Linux);
+        assert!(!cx.any_process_running(&[]));
+        assert!(!cx.any_process_running(&["mockcli"]));
+        cx.assume_running(&["MockCLI"]);
+        assert!(cx.any_process_running(&["mockcli"]));
+        assert!(!cx.any_process_running(&["other"]));
+        assert!(!cx.any_process_running(&[]));
+        cx.assume_running(&[]);
+        assert!(!cx.any_process_running(&["mockcli"]));
     }
 
     #[test]

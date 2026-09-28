@@ -28,6 +28,7 @@ pub fn provider() -> Box<dyn Provider> {
             tier: Tier::Supported,
             binaries: &["gh"],
             process_names: &[],
+            running_blocks_switch: false,
             env_shadow: &["GH_TOKEN", "GITHUB_TOKEN"],
             restart_hint: None,
             notes: "Uses gh's own account registry: `gh auth status --json hosts` to list, `gh auth switch --user` to switch. No credentials are stored by Switcheroo. github.com only; add accounts with `gh auth login`.",

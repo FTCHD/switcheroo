@@ -44,6 +44,7 @@ pub fn provider() -> Box<dyn Provider> {
             tier: Tier::Supported,
             binaries: &["npm"],
             process_names: &[],
+            running_blocks_switch: false,
             env_shadow: &[],
             restart_hint: None,
             notes: "Swaps only the //registry.npmjs.org/:_authToken line(s) in ~/.npmrc (or NPM_CONFIG_USERCONFIG); other settings stay. Covers pnpm, yarn v1 and bun. The username comes from `npm whoami` (network) when a login is saved.",

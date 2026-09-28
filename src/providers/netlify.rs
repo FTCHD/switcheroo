@@ -27,6 +27,7 @@ pub fn provider() -> Box<dyn Provider> {
             tier: Tier::Supported,
             binaries: &["netlify", "ntl"],
             process_names: &[],
+            running_blocks_switch: false,
             env_shadow: &["NETLIFY_AUTH_TOKEN"],
             restart_hint: None,
             notes: "Uses Netlify's own multi-user config.json: lists the logged-in users and switches with `netlify switch --email`. No credentials are stored by Switcheroo. Add accounts with `netlify login`.",

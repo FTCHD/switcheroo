@@ -39,6 +39,7 @@ pub fn provider() -> Box<dyn Provider> {
             tier: Tier::Experimental,
             binaries: &["turso"],
             process_names: &[],
+            running_blocks_switch: false,
             env_shadow: &["TURSO_API_TOKEN"],
             restart_hint: None,
             notes: "Swaps token/username/organization in Turso's settings.json (TURSO_CONFIG_FOLDER honored).",

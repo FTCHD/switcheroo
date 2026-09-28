@@ -58,8 +58,8 @@ Everything is a `switcheroo` subcommand with `--json` output, so it scripts well
 ## Supported CLIs
 | CLI | Mechanism | What is touched |
 |---|---|---|
-| Claude Code | swap | keychain item `Claude Code-credentials` (macOS) or `~/.claude/.credentials.json`, plus `oauthAccount` in `~/.claude.json`; running sessions pick the change up |
-| Codex CLI | swap | `~/.codex/auth.json` (file credential mode); restart running sessions |
+| Claude Code | swap | keychain item `Claude Code-credentials` (macOS) or `~/.claude/.credentials.json`, plus `oauthAccount` in `~/.claude.json`; a running `claude` refuses the switch, and a quit session picks the swapped login up |
+| Codex CLI | swap | `~/.codex/auth.json` (file credential mode); a running `codex` or the app-server daemon refuses the switch |
 | GitHub CLI | native | `gh auth switch --user`; gh keeps the accounts itself |
 | Vercel | swap | global `auth.json` token and `currentTeam` |
 | Cloudflare Wrangler | swap | OAuth login `default.toml` |
@@ -82,7 +82,7 @@ Everything is a `switcheroo` subcommand with `--json` output, so it scripts well
 3. Write the target account's credential into the slot.
 4. Ask the CLI who is signed in. On a mismatch, the previous login is restored.
 
-Before switching, Switcheroo warns about anything that would make it a no-op: environment variables the CLI prefers over its stored login (`GH_TOKEN`, `CLOUDFLARE_API_TOKEN`, `VERCEL_TOKEN`, `ANTHROPIC_API_KEY`, …), a CLI that caches credentials at startup, or an unsupported storage mode such as Codex's keyring option.
+Before switching, Switcheroo warns about anything that would make it a no-op: environment variables the CLI prefers over its stored login (`GH_TOKEN`, `CLOUDFLARE_API_TOKEN`, `VERCEL_TOKEN`, `ANTHROPIC_API_KEY`, …), a CLI that caches credentials at startup, or an unsupported storage mode such as Codex's keyring option. Those warnings do not stop a switch. A running Claude or Codex does: the switch is refused until you quit it, because a session that still holds the previous refresh token can invalidate the login just saved.
 
 ## Security
 - Secrets live only in the OS credential store: macOS Keychain, Windows Credential Manager, or Linux Secret Service. `--vault file` opts into a 0600 JSON file for machines without one. Switcheroo's own `state.json` holds emails, labels and timestamps, never tokens.

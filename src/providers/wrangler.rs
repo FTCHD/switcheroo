@@ -65,6 +65,7 @@ pub fn provider() -> Box<dyn Provider> {
             tier: Tier::Supported,
             binaries: &["wrangler"],
             process_names: &["wrangler", "workerd"],
+            running_blocks_switch: false,
             env_shadow: &["CLOUDFLARE_API_TOKEN"],
             restart_hint: None,
             notes: "Swaps the OAuth login file default.toml (WRANGLER_HOME, ~/.config/.wrangler, ~/Library/Preferences/.wrangler or ~/.wrangler). The email comes from `wrangler whoami` (network) when a login is saved. Encrypted keyring mode is not supported.",

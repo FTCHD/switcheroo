@@ -100,9 +100,10 @@ pub struct Installed {
 pub enum Severity {
     Info,
     Warn,
+    Block,
 }
 
-/// Non-fatal finding surfaced by preflight/doctor. Never blocks a switch.
+/// Preflight or doctor finding. `Info` and `Warn` never block a switch; only `Block` does.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Warning {
     pub severity: Severity,
@@ -116,6 +117,9 @@ impl Warning {
     }
     pub fn info(code: &str, message: impl Into<String>) -> Self {
         Warning { severity: Severity::Info, code: code.to_string(), message: message.into() }
+    }
+    pub fn block(code: &str, message: impl Into<String>) -> Self {
+        Warning { severity: Severity::Block, code: code.to_string(), message: message.into() }
     }
 }
 
@@ -349,5 +353,12 @@ mod tests {
     fn secret_blob_debug_is_redacted() {
         let b = SecretBlob::new(b"sk-very-secret".to_vec());
         assert_eq!(format!("{b:?}"), "SecretBlob(<14 bytes>)");
+    }
+
+    #[test]
+    fn block_serializes_as_lowercase() {
+        let w = Warning::block("running", "quit first");
+        assert_eq!(w.severity, Severity::Block);
+        assert_eq!(serde_json::to_value(&w).unwrap()["severity"], "block");
     }
 }

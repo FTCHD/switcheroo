@@ -27,6 +27,7 @@ pub fn provider() -> Box<dyn Provider> {
             tier: Tier::Experimental,
             binaries: &["railway"],
             process_names: &[],
+            running_blocks_switch: false,
             env_shadow: &["RAILWAY_API_TOKEN", "RAILWAY_TOKEN"],
             restart_hint: None,
             notes: "Swaps ~/.railway/config.json. The email comes from `railway whoami` (network) when a login is saved.",

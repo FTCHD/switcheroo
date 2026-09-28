@@ -35,7 +35,7 @@ export interface Installed {
 }
 
 export interface Warning {
-    severity: 'info' | 'warn'
+    severity: 'info' | 'warn' | 'block'
     code: string
     message: string
 }

@@ -65,7 +65,13 @@ pub fn status_table(core: &Core, statuses: &[ProviderStatus]) {
         let notes = s
             .warnings
             .iter()
-            .map(|w| format!("{} {}", if w.severity == Severity::Warn { "!" } else { "i" }, w.message))
+            .map(|w| {
+                let mark = match w.severity {
+                    Severity::Warn | Severity::Block => "!",
+                    Severity::Info => "i",
+                };
+                format!("{mark} {}", w.message)
+            })
             .collect::<Vec<_>>()
             .join("\n");
         t.add_row([
@@ -152,7 +158,11 @@ impl PipeUnit for Table {}
 
 pub fn print_warnings(warnings: &[Warning]) {
     for w in warnings {
-        let tag = if w.severity == Severity::Warn { "warning" } else { "note" };
+        let tag = match w.severity {
+            Severity::Block => "blocked",
+            Severity::Warn => "warning",
+            Severity::Info => "note",
+        };
         println!("  {tag}: {}", w.message);
     }
 }

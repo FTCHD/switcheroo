@@ -1,5 +1,6 @@
 //! OpenAI Codex CLI (`codex`). Live slot: `$CODEX_HOME/auth.json` (file credential mode).
 //! The account email and plan come from the `id_token` JWT inside that file.
+//! A switch is refused while `codex` or the app-server daemon (`codex-code-mode-host`) is running.
 
 use std::path::PathBuf;
 
@@ -124,12 +125,13 @@ pub fn provider() -> Box<dyn Provider> {
             strategy: Strategy::SlotSwap,
             tier: Tier::Supported,
             binaries: &["codex"],
-            process_names: &["codex"],
+            process_names: &["codex", "codex-code-mode-host"],
+            running_blocks_switch: true,
             env_shadow: &["OPENAI_API_KEY"],
             restart_hint: Some(
                 "Running Codex sessions and app-server daemons cache credentials at startup; restart them to use the new account.",
             ),
-            notes: "Swaps ~/.codex/auth.json (honors CODEX_HOME). Keyring credential mode (cli_auth_credentials_store = \"keyring\") is not supported.",
+            notes: "Swaps ~/.codex/auth.json (honors CODEX_HOME). Keyring credential mode (cli_auth_credentials_store = \"keyring\") is not supported. A switch is refused while codex or the app-server daemon (codex-code-mode-host) is running.",
             login: &["codex", "login"],
         },
         slots,

@@ -30,6 +30,7 @@ pub fn provider() -> Box<dyn Provider> {
             tier: Tier::Experimental,
             binaries: &["gemini"],
             process_names: &["gemini"],
+            running_blocks_switch: false,
             env_shadow: &["GEMINI_API_KEY", "GOOGLE_APPLICATION_CREDENTIALS"],
             restart_hint: Some("Gemini CLI reads credentials at startup; quit and restart it."),
             notes: "Swaps ~/.gemini/oauth_creds.json and google_accounts.json together. Log in by running `gemini` and using /auth.",

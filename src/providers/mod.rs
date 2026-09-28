@@ -49,6 +49,8 @@ pub struct ProviderMeta {
     pub binaries: &'static [&'static str],
     /// Process names that mean "the CLI is running right now".
     pub process_names: &'static [&'static str],
+    /// When true, a listed running process refuses the switch. When false, it only warns.
+    pub running_blocks_switch: bool,
     /// Env vars that make the CLI ignore its stored login.
     pub env_shadow: &'static [&'static str],
     /// Shown after a switch when the CLI caches credentials in memory.
@@ -100,7 +102,8 @@ pub trait Provider: Send + Sync {
         Ok(None)
     }
 
-    /// Non-fatal findings before a switch (env shadowing, running process, unsupported mode).
+    /// Findings before a switch (env shadowing, a running process, unsupported mode).
+    /// Only a `block` severity refuses the switch.
     fn preflight(&self, cx: &Cx) -> Vec<Warning> {
         default_preflight(self.meta(), cx)
     }
@@ -206,10 +209,20 @@ pub fn default_preflight(meta: &ProviderMeta, cx: &Cx) -> Vec<Warning> {
         }
     }
     if cx.any_process_running(meta.process_names) {
-        out.push(Warning::warn(
-            "running",
-            format!("{} appears to be running; it may not notice the switch until restarted", meta.name),
-        ));
+        if meta.running_blocks_switch {
+            out.push(Warning::block(
+                "running",
+                format!(
+                    "{} is running. Quit it before switching. A session that still holds the previous refresh token can invalidate the login just saved.",
+                    meta.name
+                ),
+            ));
+        } else {
+            out.push(Warning::warn(
+                "running",
+                format!("{} appears to be running; it may not notice the switch until restarted", meta.name),
+            ));
+        }
     }
     out
 }
@@ -217,6 +230,8 @@ pub fn default_preflight(meta: &ProviderMeta, cx: &Cx) -> Vec<Warning> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::cx::Os;
+    use crate::core::model::Severity;
 
     #[test]
     fn every_provider_has_a_unique_id_and_a_hex_color() {
@@ -233,5 +248,45 @@ mod tests {
                 p.meta().id
             );
         }
+    }
+
+    #[test]
+    fn running_process_blocks_only_when_the_provider_says_so() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut cx = Cx::test(dir.path(), Os::Linux);
+        cx.assume_running(&["Tool"]);
+        let mut meta = ProviderMeta {
+            id: "t",
+            name: "Claude Code",
+            color: "#000000",
+            strategy: Strategy::SlotSwap,
+            tier: Tier::Supported,
+            binaries: &[],
+            process_names: &["tool"],
+            running_blocks_switch: true,
+            env_shadow: &[],
+            restart_hint: None,
+            notes: "",
+            login: &[],
+        };
+        let blocked = default_preflight(&meta, &cx);
+        assert_eq!(blocked.len(), 1);
+        assert_eq!(blocked[0].code, "running");
+        assert_eq!(blocked[0].severity, Severity::Block);
+        assert_eq!(
+            blocked[0].message,
+            "Claude Code is running. Quit it before switching. A session that still holds the previous refresh token can invalidate the login just saved."
+        );
+        meta.running_blocks_switch = false;
+        let warned = default_preflight(&meta, &cx);
+        assert_eq!(warned[0].severity, Severity::Warn);
+        assert_eq!(warned[0].code, "running");
+        assert_eq!(
+            warned[0].message,
+            "Claude Code appears to be running; it may not notice the switch until restarted"
+        );
+        meta.running_blocks_switch = true;
+        meta.process_names = &[];
+        assert!(default_preflight(&meta, &cx).is_empty());
     }
 }

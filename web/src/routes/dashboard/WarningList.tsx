@@ -7,7 +7,7 @@ export function WarningList({ warnings, className }: { warnings: Warning[]; clas
     return (
         <ul className={cn('space-y-1.5', className)}>
             {warnings.map((w) => {
-                const warn = w.severity === 'warn'
+                const warn = w.severity === 'warn' || w.severity === 'block'
                 const Icon = warn ? TriangleAlertIcon : InfoIcon
                 return (
                     <li

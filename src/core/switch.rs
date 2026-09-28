@@ -258,6 +258,18 @@ impl Core {
         }
     }
 
+    /// Preflight findings, or an error whose text is every `Block` message joined by newlines.
+    /// `warn` and `info` are returned and do not refuse.
+    fn refuse_blocked(&self, p: &dyn Provider) -> Result<Vec<Warning>> {
+        let warnings = p.preflight(&self.cx);
+        let messages: Vec<&str> =
+            warnings.iter().filter(|w| w.severity == Severity::Block).map(|w| w.message.as_str()).collect();
+        if !messages.is_empty() {
+            bail!("{}", messages.join("\n"));
+        }
+        Ok(warnings)
+    }
+
     /// Switch the live login. Re-captures whatever is live first, then activates, then verifies.
     pub fn use_account(&self, provider_id: &str, query: &str) -> Result<SwitchOutcome> {
         let p = self.provider(provider_id)?;
@@ -265,7 +277,7 @@ impl Core {
         self.require_installed(p)?;
         let meta = p.meta();
         let target = self.resolve_account(p, query)?;
-        let mut warnings = p.preflight(&self.cx);
+        let mut warnings = self.refuse_blocked(p)?;
         let mut recaptured: Option<Identity> = None;
 
         match meta.strategy {
@@ -414,6 +426,8 @@ impl Core {
                 p.meta().id
             );
         }
+
+        self.refuse_blocked(p)?;
         let code = self.cx.run_interactive(&argv).with_context(|| format!("running {}", argv.join(" ")))?;
         if code != 0 {
             bail!("`{}` exited with status {}", argv.join(" "), code);
@@ -538,5 +552,62 @@ mod tests {
         assert_eq!(core.resolve_account(p, "TWO@X.IO").unwrap().id, "two@x.io");
         core.rename("mock", "one", "Personal").unwrap();
         assert_eq!(core.resolve_account(p, "personal").unwrap().id, "one@x.io");
+    }
+
+    fn blocking_mock() -> crate::providers::slot_provider::SlotProvider {
+        let mut p = json_file_provider();
+        p.meta.process_names = &["mockcli"];
+        p.meta.running_blocks_switch = true;
+        p
+    }
+
+    #[test]
+    fn running_block_refuses_before_any_write() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut cx = Cx::test(dir.path(), Os::Linux);
+        cx.assume_running(&["mockcli"]);
+        let core = Core::open(CoreOpts {
+            data_dir: Some(dir.path().join("data")),
+            vault: Some(VaultChoice::File),
+            cx: Some(cx),
+            providers: Some(vec![Box::new(blocking_mock())]),
+        })
+        .unwrap();
+        std::fs::write(dir.path().join("mock.json"), r#"{"token":"t-a","user":"a@x.io","theme":"dark"}"#).unwrap();
+        core.detect_cache.lock().unwrap().insert("mock", Some(Installed { path: "/bin/mock".into(), version: None }));
+        core.save("mock", None).unwrap();
+        std::fs::write(dir.path().join("mock.json"), r#"{"token":"t-b","user":"b@x.io","theme":"dark"}"#).unwrap();
+        let saved_a = core.vault.get("mock:a@x.io").unwrap().unwrap();
+        let saved_a = saved_a.as_bytes().to_vec();
+        let err = core.use_account("mock", "a@x.io").unwrap_err();
+        assert!(err.to_string().contains("is running"));
+        let v: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(dir.path().join("mock.json")).unwrap()).unwrap();
+        assert_eq!(v["token"], "t-b"); // the live file was not replaced
+        assert_eq!(core.vault.get("mock:a@x.io").unwrap().unwrap().as_bytes(), saved_a.as_slice());
+        assert!(core.vault.get("mock:b@x.io").unwrap().is_none());
+    }
+
+    #[test]
+    fn warn_still_allows_switch() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut cx = Cx::test(dir.path(), Os::Linux);
+        cx.set_env("MOCK_TOKEN", "x");
+        let core = Core::open(CoreOpts {
+            data_dir: Some(dir.path().join("data")),
+            vault: Some(VaultChoice::File),
+            cx: Some(cx),
+            providers: Some(vec![Box::new(json_file_provider())]),
+        })
+        .unwrap();
+        core.detect_cache.lock().unwrap().insert("mock", Some(Installed { path: "/bin/mock".into(), version: None }));
+        std::fs::write(dir.path().join("mock.json"), r#"{"token":"t-a","user":"a@x.io","theme":"dark"}"#).unwrap();
+        core.save("mock", None).unwrap();
+        std::fs::write(dir.path().join("mock.json"), r#"{"token":"t-b","user":"b@x.io","theme":"dark"}"#).unwrap();
+        let out = core.use_account("mock", "a@x.io").unwrap();
+        assert!(out.warnings.iter().any(|w| w.code == "env-shadow"));
+        let v: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(dir.path().join("mock.json")).unwrap()).unwrap();
+        assert_eq!(v["token"], "t-a");
     }
 }

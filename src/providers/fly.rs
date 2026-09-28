@@ -31,6 +31,7 @@ pub fn provider() -> Box<dyn Provider> {
             tier: Tier::Supported,
             binaries: &["flyctl", "fly"],
             process_names: &["flyctl"],
+            running_blocks_switch: false,
             env_shadow: &["FLY_API_TOKEN", "FLY_ACCESS_TOKEN"],
             restart_hint: None,
             notes: "Swaps ~/.fly/config.yml (taking flyctl's lock file first). The email comes from `fly auth whoami --json` (network) when a login is saved.",

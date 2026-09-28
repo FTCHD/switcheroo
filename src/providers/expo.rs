@@ -25,6 +25,7 @@ pub fn provider() -> Box<dyn Provider> {
             tier: Tier::Experimental,
             binaries: &["eas", "expo"],
             process_names: &[],
+            running_blocks_switch: false,
             env_shadow: &["EXPO_TOKEN"],
             restart_hint: None,
             notes: "Swaps the auth object in ~/.expo/state.json (shared by Expo CLI and EAS CLI).",

@@ -186,6 +186,7 @@ pub mod testing {
                 tier: Tier::Supported,
                 binaries: &[],
                 process_names: &[],
+                running_blocks_switch: false,
                 env_shadow: &["MOCK_TOKEN"],
                 restart_hint: None,
                 notes: "test",
