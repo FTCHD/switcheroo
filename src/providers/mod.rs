@@ -147,6 +147,12 @@ pub trait Provider: Send + Sync {
         self.meta().login.iter().map(|s| s.to_string()).collect()
     }
 
+    /// A new login captured without reading or writing the live slots.
+    /// `Ok(None)` (the default) means the caller should run `login_command` instead.
+    fn import_login(&self, _cx: &Cx) -> Result<Option<Captured>> {
+        Ok(None)
+    }
+
     // ---- usage -------------------------------------------------------------------------
 
     fn supports_usage(&self) -> bool {

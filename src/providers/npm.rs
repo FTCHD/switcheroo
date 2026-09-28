@@ -54,6 +54,7 @@ pub fn provider() -> Box<dyn Provider> {
         verify: Some(WHOAMI),
         extra_preflight: None,
         usage: None,
+        import_login: None,
     })
 }
 

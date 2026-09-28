@@ -59,7 +59,7 @@ Everything is a `switcheroo` subcommand with `--json` output, so it scripts well
 | CLI | Mechanism | What is touched |
 |---|---|---|
 | Claude Code | swap | keychain item `Claude Code-credentials` (macOS) or `~/.claude/.credentials.json`, plus `oauthAccount` in `~/.claude.json`; running sessions pick the change up |
-| Codex CLI | swap | `~/.codex/auth.json` (file credential mode); restart running sessions |
+| Codex CLI | swap | `~/.codex/auth.json` (file credential mode); `login` signs in inside an empty home and leaves the current file in place; restart running sessions |
 | GitHub CLI | native | `gh auth switch --user`; gh keeps the accounts itself |
 | Vercel | swap | global `auth.json` token and `currentTeam` |
 | Cloudflare Wrangler | swap | OAuth login `default.toml` |
@@ -95,7 +95,7 @@ Before switching, Switcheroo warns about anything that would make it a no-op: en
 |---|---|
 | `switcheroo` / `status [--refresh]` | Every detected CLI, who it is signed in as, remembered accounts |
 | `save <provider> [--label NAME]` | Remember the current login |
-| `login <provider> [--label NAME]` | Run the CLI's sign-in here, then remember the result |
+| `login <provider> [--label NAME]` | Run the CLI's sign-in here, then remember the result. Codex signs in inside an empty home and leaves the current login in place |
 | `use <provider> [account]` | Switch; account by email, label or unique fragment, picker if omitted |
 | `list [provider]` · `rename` · `remove` | Manage remembered accounts |
 | `usage [provider] [--refresh]` | Used quota and reset times for signed-in accounts |

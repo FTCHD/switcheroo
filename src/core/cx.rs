@@ -212,16 +212,26 @@ impl Cx {
 
     /// Run a CLI attached to the current terminal (logins). Returns the exit code.
     pub fn run_interactive(&self, argv: &[String]) -> Result<i32> {
+        self.run_interactive_with(argv, &[], &[])
+    }
+
+    /// Like `run_interactive`. `set` and `remove` apply to the child only; the parent
+    /// environment is otherwise inherited, including `PATH` via `.env("PATH", ...)`.
+    pub fn run_interactive_with(&self, argv: &[String], set: &[(&str, &str)], remove: &[&str]) -> Result<i32> {
         if !self.commands_allowed {
             return Err(anyhow!("external commands are disabled in this context"));
         }
         let (program, args) = argv.split_first().context("empty argv")?;
         let resolved = self.find_binary(&[program.as_str()]).unwrap_or_else(|| PathBuf::from(program));
-        let status = Command::new(&resolved)
-            .args(args)
-            .env("PATH", self.path_string())
-            .status()
-            .with_context(|| format!("running {}", resolved.display()))?;
+        let mut cmd = Command::new(&resolved);
+        cmd.args(args).env("PATH", self.path_string());
+        for key in remove {
+            cmd.env_remove(key);
+        }
+        for (key, value) in set {
+            cmd.env(key, value);
+        }
+        let status = cmd.status().with_context(|| format!("running {}", resolved.display()))?;
         Ok(status.code().unwrap_or(1))
     }
 

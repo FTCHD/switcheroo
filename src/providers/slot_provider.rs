@@ -24,6 +24,8 @@ pub struct SlotProvider {
     pub verify: Option<Cmd>,
     pub extra_preflight: Option<fn(&Cx) -> Vec<Warning>>,
     pub usage: Option<UsageFn>,
+    /// Raw bytes of one slot (Codex: `auth.json`) captured without touching the live files.
+    pub import_login: Option<fn(&Cx) -> Result<Vec<u8>>>,
 }
 
 const BLOB_VERSION: u32 = 1;
@@ -79,6 +81,16 @@ impl SlotProvider {
             }
         }
         Ok(())
+    }
+
+    /// Same encoding and identity resolution as `capture`, for bytes that did not come from the live slots.
+    pub(crate) fn captured_from_bytes(&self, cx: &Cx, bytes: Vec<u8>) -> Captured {
+        let data = vec![Some(bytes)];
+        let (identity, identity_error) = match self.identity.resolve(cx, &data) {
+            Ok(i) => (i, None),
+            Err(e) => (None, Some(format!("{e:#}"))),
+        };
+        Captured { identity, secret: Self::encode(&data), identity_error }
     }
 }
 
@@ -153,6 +165,11 @@ impl Provider for SlotProvider {
         f(cx, &data)
     }
 
+    fn import_login(&self, cx: &Cx) -> Result<Option<Captured>> {
+        let Some(hook) = self.import_login else { return Ok(None) };
+        Ok(Some(self.captured_from_bytes(cx, hook(cx)?)))
+    }
+
     fn verify(&self, cx: &Cx, expected: &Identity) -> Result<bool> {
         match &self.verify {
             Some(cmd) => Ok(run_cmd(cx, cmd)?.map(|l| l.same_as(expected)).unwrap_or(false)),
@@ -198,6 +215,7 @@ pub mod testing {
             verify: None,
             extra_preflight: None,
             usage: None,
+            import_login: None,
         }
     }
 }
