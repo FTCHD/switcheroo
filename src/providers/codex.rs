@@ -1,7 +1,8 @@
 //! OpenAI Codex CLI (`codex`). Live slot: `$CODEX_HOME/auth.json` (file credential mode).
 //! The account email and plan come from the `id_token` JWT inside that file.
 
-use std::path::PathBuf;
+use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
 use chrono::{DateTime, Utc};
@@ -14,6 +15,8 @@ use super::util::text::tilde;
 use super::util::{http, jwt};
 use super::{Provider, ProviderMeta, Tier};
 use crate::core::cx::Cx;
+#[cfg(test)]
+use crate::core::model::Captured;
 use crate::core::model::{Strategy, Usage, UsageItem, Warning};
 
 fn codex_home(cx: &Cx) -> PathBuf {
@@ -115,8 +118,82 @@ pub fn parse_codex_usage(v: &Value) -> Usage {
     Usage { items, note: Some("Rate limits as reported by ChatGPT for this account.".into()), fetched_at: Utc::now() }
 }
 
-pub fn provider() -> Box<dyn Provider> {
-    Box::new(SlotProvider {
+/// Child environment for `codex login`. The path is stored as given — do not canonicalize,
+/// or a `/tmp/...` home becomes `/private/tmp/...` on macOS.
+struct CodexLoginEnv {
+    set: BTreeMap<String, String>,
+    remove: Vec<&'static str>,
+}
+
+impl CodexLoginEnv {
+    fn set_pairs(&self) -> Vec<(&str, &str)> {
+        self.set.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect()
+    }
+}
+
+fn codex_login_env(home: &Path) -> CodexLoginEnv {
+    let mut set = BTreeMap::new();
+    set.insert("CODEX_HOME".to_string(), home.to_string_lossy().into_owned());
+    CodexLoginEnv { set, remove: vec!["OPENAI_API_KEY", "CODEX_ACCESS_TOKEN"] }
+}
+
+/// Empty on purpose: `codex login` revokes whatever `auth.json` is already in `CODEX_HOME`.
+struct TempCodexHome {
+    path: PathBuf,
+}
+
+impl TempCodexHome {
+    fn new() -> Result<Self> {
+        let path = std::env::temp_dir().join(format!("switcheroo-codex-{}", uuid::Uuid::new_v4()));
+        create_mode_700(&path)?;
+        Ok(Self { path })
+    }
+
+    fn path(&self) -> &Path {
+        &self.path
+    }
+}
+
+impl Drop for TempCodexHome {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.path);
+    }
+}
+
+fn create_mode_700(path: &Path) -> Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::DirBuilderExt;
+        std::fs::DirBuilder::new().mode(0o700).create(path).with_context(|| format!("creating {}", path.display()))
+    }
+    #[cfg(not(unix))]
+    {
+        std::fs::create_dir(path).with_context(|| format!("creating {}", path.display()))
+    }
+}
+
+fn import_codex_login(cx: &Cx) -> Result<Vec<u8>> {
+    let dir = TempCodexHome::new()?;
+    let argv = vec!["codex".into(), "login".into()];
+    let env = codex_login_env(dir.path());
+    let code = cx.run_interactive_with(&argv, &env.set_pairs(), &env.remove)?;
+    if code != 0 {
+        bail!("`codex login` exited with status {code}");
+    }
+    let path = dir.path().join("auth.json");
+    std::fs::read(&path).with_context(|| format!("codex login wrote no {}", path.display()))
+}
+
+/// Read `<home>/auth.json` and build a `Captured` the same way `SlotProvider::import_login` does.
+#[cfg(test)]
+fn capture_codex_auth(cx: &Cx, home: &Path) -> Result<Captured> {
+    let path = home.join("auth.json");
+    let bytes = std::fs::read(&path).with_context(|| format!("reading {}", path.display()))?;
+    Ok(codex_slot_provider().captured_from_bytes(cx, bytes))
+}
+
+fn codex_slot_provider() -> SlotProvider {
+    SlotProvider {
         meta: ProviderMeta {
             id: "codex",
             color: "#10A37F",
@@ -142,7 +219,12 @@ pub fn provider() -> Box<dyn Provider> {
         verify: None,
         extra_preflight: Some(preflight),
         usage: Some(usage),
-    })
+        import_login: Some(import_codex_login),
+    }
+}
+
+pub fn provider() -> Box<dyn Provider> {
+    Box::new(codex_slot_provider())
 }
 
 #[cfg(test)]
@@ -206,5 +288,37 @@ mod tests {
         assert!(p.live_identity(&cx).unwrap().is_none());
         let cap = p.capture(&cx).unwrap().unwrap();
         assert!(cap.identity.is_none());
+    }
+
+    #[test]
+    fn imported_auth_uses_the_temp_file_identity_and_not_the_live_home() {
+        let dir = tempfile::tempdir().unwrap();
+        let cx = Cx::test(dir.path(), Os::Mac);
+        let live = dir.path().join(".codex");
+        std::fs::create_dir_all(&live).unwrap();
+        std::fs::write(live.join("auth.json"), br#"{"tokens":null,"marker":"live"}"#).unwrap();
+        std::fs::write(live.join("config.toml"), "cli_auth_credentials_store = \"keyring\"\n").unwrap();
+
+        let temp = dir.path().join("empty-home");
+        std::fs::create_dir_all(&temp).unwrap();
+        let token = jwt(r#"{"email":"Second@Example.com","https://api.openai.com/auth":{"chatgpt_plan_type":"plus"}}"#);
+        std::fs::write(
+            temp.join("auth.json"),
+            format!(r#"{{"tokens":{{"id_token":"{token}","access_token":"a","refresh_token":"r"}}}}"#),
+        )
+        .unwrap();
+
+        let captured = capture_codex_auth(&cx, &temp).unwrap();
+        assert_eq!(captured.identity.unwrap().id, "second@example.com");
+        assert_eq!(std::fs::read(live.join("auth.json")).unwrap(), br#"{"tokens":null,"marker":"live"}"#);
+        assert!(std::fs::read_to_string(live.join("config.toml")).unwrap().contains("keyring"));
+    }
+
+    #[test]
+    fn login_child_env_points_at_the_empty_home_and_drops_live_overrides() {
+        let env = codex_login_env(std::path::Path::new("/tmp/switcheroo-codex-example"));
+        assert_eq!(env.set.get("CODEX_HOME").map(String::as_str), Some("/tmp/switcheroo-codex-example"));
+        assert!(env.remove.iter().any(|k| *k == "OPENAI_API_KEY"));
+        assert!(env.remove.iter().any(|k| *k == "CODEX_ACCESS_TOKEN"));
     }
 }

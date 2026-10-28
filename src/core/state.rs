@@ -2,7 +2,7 @@
 //! provider. No secrets. Written atomically; `revision` increases on every save so other
 //! processes (tray, server) can tell when to reload.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use anyhow::{Context, Result};
@@ -27,6 +27,11 @@ pub struct State {
     pub accounts: Vec<Account>,
     #[serde(default)]
     pub live_cache: BTreeMap<String, LiveCache>,
+    /// Vault keys (`provider:id`) whose saved secret must be installed on the next `use`,
+    /// even when the live file for that same id is different. An isolated import sets this.
+    /// A normal save, a committed `use`, or removal clears it.
+    #[serde(default)]
+    pub install_saved: BTreeSet<String>,
 }
 
 impl State {

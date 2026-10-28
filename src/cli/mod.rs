@@ -259,11 +259,14 @@ fn dispatch(cli: Cli) -> Result<i32> {
             if !json {
                 eprintln!("Running: {}", argv.join(" "));
             }
-            let acct = core.login_here(&provider, label)?;
+            let saved = core.login_here(&provider, label)?;
             if json {
-                output::json(&acct)?;
+                output::json(&saved)?;
             } else {
-                println!("Saved {} → {} ({})", acct.provider, acct.label, acct.id);
+                println!("Saved {} → {} ({})", saved.account.provider, saved.account.label, saved.account.id);
+                if let Some(note) = &saved.note {
+                    println!("{note}");
+                }
             }
         }
         Command::Remove { provider, account, yes } => {

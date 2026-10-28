@@ -95,7 +95,7 @@ Before switching, Switcheroo warns about anything that would make it a no-op: en
 |---|---|
 | `switcheroo` / `status [--refresh]` | Every detected CLI, who it is signed in as, remembered accounts |
 | `save <provider> [--label NAME]` | Remember the current login |
-| `login <provider> [--label NAME]` | Run the CLI's sign-in here, then remember the result |
+| `login <provider> [--label NAME]` | Run the CLI's sign-in here, then remember the result. Codex signs in inside an empty home and leaves the current login in place |
 | `use <provider> [account]` | Switch; account by email, label or unique fragment, picker if omitted |
 | `list [provider]` · `rename` · `remove` | Manage remembered accounts |
 | `usage [provider] [--refresh]` | Used quota and reset times for signed-in accounts |
