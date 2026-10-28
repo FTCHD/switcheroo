@@ -318,7 +318,7 @@ mod tests {
     fn login_child_env_points_at_the_empty_home_and_drops_live_overrides() {
         let env = codex_login_env(std::path::Path::new("/tmp/switcheroo-codex-example"));
         assert_eq!(env.set.get("CODEX_HOME").map(String::as_str), Some("/tmp/switcheroo-codex-example"));
-        assert!(env.remove.iter().any(|k| *k == "OPENAI_API_KEY"));
-        assert!(env.remove.iter().any(|k| *k == "CODEX_ACCESS_TOKEN"));
+        assert!(env.remove.contains(&"OPENAI_API_KEY"));
+        assert!(env.remove.contains(&"CODEX_ACCESS_TOKEN"));
     }
 }

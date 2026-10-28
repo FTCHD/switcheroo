@@ -15,6 +15,9 @@ use crate::core::model::{Captured, Identity, SecretBlob, Usage, Warning};
 /// Provider-specific usage fetch, given the live slot contents (so it can read its own token).
 pub type UsageFn = fn(&Cx, &[Option<Vec<u8>>]) -> Result<Option<Usage>>;
 
+/// Runs a login that leaves the live slots alone and returns the raw bytes of the one slot it produced.
+pub type ImportLoginFn = fn(&Cx) -> Result<Vec<u8>>;
+
 pub struct SlotProvider {
     pub meta: ProviderMeta,
     /// Build the slots for this environment (paths depend on OS/home/env).
@@ -25,7 +28,7 @@ pub struct SlotProvider {
     pub extra_preflight: Option<fn(&Cx) -> Vec<Warning>>,
     pub usage: Option<UsageFn>,
     /// Raw bytes of one slot (Codex: `auth.json`) captured without touching the live files.
-    pub import_login: Option<fn(&Cx) -> Result<Vec<u8>>>,
+    pub import_login: Option<ImportLoginFn>,
 }
 
 const BLOB_VERSION: u32 = 1;

@@ -756,13 +756,13 @@ mod tests {
         core.detect_cache.lock().unwrap().insert("mock", Some(Installed { path: "/bin/mock".into(), version: None }));
         let file = dir.path().join("mock.json");
         std::fs::write(&file, r#"{"token":"t-a","user":"a@x.io"}"#).unwrap();
-        assert!(core.state().live_cache.get("mock").is_none());
+        assert!(!core.state().live_cache.contains_key("mock"));
 
         let saved = core.login_here("mock", None).unwrap();
         assert_eq!(saved.account.id, "b@x.io");
-        assert!(core.state().live_cache.get("mock").is_none());
+        assert!(!core.state().live_cache.contains_key("mock"));
         let disk = crate::core::state::State::load(&core.dirs.state_file()).unwrap();
-        assert!(disk.live_cache.get("mock").is_none());
+        assert!(!disk.live_cache.contains_key("mock"));
         assert_eq!(std::fs::read_to_string(&file).unwrap(), r#"{"token":"t-a","user":"a@x.io"}"#);
 
         let st = core.status(core.provider("mock").unwrap(), false);

@@ -59,7 +59,7 @@ Everything is a `switcheroo` subcommand with `--json` output, so it scripts well
 | CLI | Mechanism | What is touched |
 |---|---|---|
 | Claude Code | swap | on macOS, Keychain item `Claude Code-credentials` whenever it exists, otherwise `~/.claude/.credentials.json`; `oauthAccount` in `~/.claude.json` moves with the login and other keys in both stores stay; running sessions pick the change up |
-| Codex CLI | swap | `~/.codex/auth.json` (file credential mode); restart running sessions |
+| Codex CLI | swap | `~/.codex/auth.json` (file credential mode); `login` signs in inside an empty home and leaves the current file in place; restart running sessions |
 | GitHub CLI | native | `gh auth switch --user`; gh keeps the accounts itself |
 | Vercel | swap | global `auth.json` token and `currentTeam` |
 | Cloudflare Wrangler | swap | OAuth login `default.toml` |
