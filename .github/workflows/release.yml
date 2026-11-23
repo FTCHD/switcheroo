@@ -35,11 +35,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-14
+          - os: macos-15
             target: aarch64-apple-darwin
             name: switcheroo-macos-aarch64
           # Intel macOS is cross-compiled on the Apple-silicon runner (macos-13 is retired).
-          - os: macos-14
+          - os: macos-15
             target: x86_64-apple-darwin
             name: switcheroo-macos-x86_64
             cross: true
