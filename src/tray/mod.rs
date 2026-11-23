@@ -15,7 +15,7 @@ use std::time::Duration;
 use anyhow::{Context, Result};
 use tao::event::{Event, StartCause};
 use tao::event_loop::{ControlFlow, EventLoopBuilder, EventLoopProxy};
-use tray_icon::menu::MenuEvent;
+use tray_icon::menu::{Menu, MenuEvent};
 use tray_icon::{TrayIcon, TrayIconBuilder};
 
 use crate::core::Core;
@@ -33,7 +33,48 @@ pub enum UserEvent {
     },
     /// Something changed; recompute statuses.
     Dirty,
+    /// Try again to install a menu that waited for the open menu to close.
+    MenuRetry,
     Error(String),
+}
+
+/// Swaps the tray menu without freeing one that AppKit can still use. muda's native items
+/// point back at the Rust items, and a click on an item whose Rust side was freed reads
+/// garbage and aborts the process. So a menu that is open is never replaced, and the previous
+/// menu stays alive until the next swap, for a click that arrives as the menu closes.
+#[derive(Default)]
+struct MenuSlot {
+    current: Option<Menu>,
+    previous: Option<Menu>,
+    pending: Option<Menu>,
+    retry_scheduled: bool,
+}
+
+impl MenuSlot {
+    fn install(&mut self, tray: &TrayIcon, menu: Menu, proxy: &EventLoopProxy<UserEvent>) {
+        if platform::menu_is_open() {
+            self.pending = Some(menu);
+            if !self.retry_scheduled {
+                log::info!("the tray menu is open; it updates after it closes");
+                self.retry_scheduled = true;
+                let proxy = proxy.clone();
+                std::thread::spawn(move || {
+                    std::thread::sleep(Duration::from_millis(500));
+                    let _ = proxy.send_event(UserEvent::MenuRetry);
+                });
+            }
+            return;
+        }
+        tray.set_menu(Some(Box::new(menu.clone())));
+        self.previous = self.current.replace(menu);
+    }
+
+    fn retry(&mut self, tray: &TrayIcon, proxy: &EventLoopProxy<UserEvent>) {
+        self.retry_scheduled = false;
+        if let Some(menu) = self.pending.take() {
+            self.install(tray, menu, proxy);
+        }
+    }
 }
 
 pub fn run(core: Arc<Core>) -> Result<()> {
@@ -122,6 +163,7 @@ fn run_loop(
     }
 
     let mut tray: Option<TrayIcon> = None;
+    let mut menus = MenuSlot::default();
     let mut last_error: Option<String> = None;
     let mut announced_update: Option<String> = None;
     let mut computing = false;
@@ -133,6 +175,7 @@ fn run_loop(
         match event {
             Event::NewEvents(StartCause::Init) => {
                 let menu = menu::loading_menu();
+                menus.current = Some(menu.clone());
                 match TrayIconBuilder::new()
                     .with_menu(Box::new(menu))
                     .with_tooltip("Switcheroo")
@@ -169,12 +212,17 @@ fn run_loop(
                 let menu =
                     menu::build(&providers, &settings, autostart, &usage, update.as_ref(), last_error.as_deref());
                 if let Some(t) = &tray {
-                    t.set_menu(Some(Box::new(menu)));
+                    menus.install(t, menu, &proxy);
                 }
                 if dirty_while_computing {
                     dirty_while_computing = false;
                     computing = true;
                     spawn_status(core.clone(), proxy.clone());
+                }
+            }
+            Event::UserEvent(UserEvent::MenuRetry) => {
+                if let Some(t) = &tray {
+                    menus.retry(t, &proxy);
                 }
             }
             Event::UserEvent(UserEvent::Error(msg)) => {
