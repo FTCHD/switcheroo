@@ -139,7 +139,8 @@ fn usage(_cx: &Cx, slots: &[Option<Vec<u8>>]) -> Result<Option<Usage>> {
     let Some(bytes) = slots.first().and_then(|s| s.as_ref()) else { return Ok(None) };
     let creds: Value = serde_json::from_slice(bytes).context("credential is not JSON")?;
     let Some(token) = creds.pointer("/claudeAiOauth/accessToken").and_then(Value::as_str) else { return Ok(None) };
-    let plan = creds.pointer("/claudeAiOauth/subscriptionType").and_then(Value::as_str).map(str::to_string);
+    let account: Option<Value> = slots.get(1).and_then(|s| s.as_deref()).and_then(|b| serde_json::from_slice(b).ok());
+    let plan = plan_name(&creds, account.as_ref());
     let auth = format!("Bearer {token}");
     let headers = [
         ("Authorization", auth.as_str()),
@@ -181,6 +182,84 @@ fn title_case(words: &str) -> String {
         })
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+/// Anthropic names plans on the server (`max` with the 20x tier is "Ultra"), and Claude Code
+/// stores that name in `oauthAccount`. Older logins only have the subscription type and tier.
+pub fn plan_name(creds: &Value, account: Option<&Value>) -> Option<String> {
+    let display = account
+        .and_then(|a| a.pointer("/oauthAccount/planDisplayName"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|n| !n.is_empty());
+    if let Some(name) = display {
+        return Some(name.to_string());
+    }
+    let kind = creds.pointer("/claudeAiOauth/subscriptionType").and_then(Value::as_str).filter(|s| !s.is_empty())?;
+    let multiplier = creds
+        .pointer("/claudeAiOauth/rateLimitTier")
+        .and_then(Value::as_str)
+        .and_then(|t| t.rsplit('_').next())
+        .filter(|m| m.len() > 1 && m.ends_with('x') && m[..m.len() - 1].chars().all(|c| c.is_ascii_digit()));
+    Some(match multiplier {
+        Some(m) => format!("{} {m}", title_case(kind)),
+        None => title_case(kind),
+    })
+}
+
+/// `{"amount_minor": 1234, "currency": "USD", "exponent": 2}` as "$12.34".
+fn money(v: Option<&Value>) -> Option<String> {
+    let v = v?;
+    let minor = v.get("amount_minor").and_then(Value::as_i64)?;
+    let exponent = v.get("exponent").and_then(Value::as_u64).unwrap_or(2).min(6) as usize;
+    let amount = minor as f64 / 10f64.powi(exponent as i32);
+    Some(match v.get("currency").and_then(Value::as_str).unwrap_or("") {
+        "USD" => format!("${amount:.exponent$}"),
+        "" => format!("{amount:.exponent$}"),
+        currency => format!("{amount:.exponent$} {currency}"),
+    })
+}
+
+/// Extra usage past the plan limits. Newer responses send `spend` next to the older
+/// `extra_usage`; `extra_usage` is used only when `spend` is absent.
+fn extra_usage(v: &Value) -> Option<UsageItem> {
+    if let Some(spend) = v.get("spend").filter(|s| s.is_object()) {
+        if spend.get("enabled").and_then(Value::as_bool) != Some(true) {
+            return None;
+        }
+        let used = money(spend.get("used"));
+        return match (spend.get("percent").and_then(Value::as_f64), money(spend.get("limit"))) {
+            (Some(pct), Some(limit)) => {
+                let mut item = UsageItem::percent("Extra usage", pct, None);
+                item.detail = used.map(|u| format!("{u} of {limit}"));
+                Some(item)
+            }
+            _ => used.map(|u| UsageItem::text("Extra usage", format!("{u} spent"))),
+        };
+    }
+    let extra = v.get("extra_usage").filter(|e| e.get("is_enabled").and_then(Value::as_bool) == Some(true))?;
+    let pct = extra.get("utilization").and_then(Value::as_f64)?;
+    Some(UsageItem::percent("Extra usage (monthly)", pct, None))
+}
+
+/// Which products used the weekly limit ("Claude Code 60% · Chats 5%"). The shares are of the
+/// limit, so they add up to the weekly percent. Products at 0% are left out.
+fn weekly_breakdown(v: &Value) -> Option<UsageItem> {
+    let rows = v.pointer("/seven_day_breakdown/rows").and_then(Value::as_array)?;
+    let mut parts: Vec<(&str, i64)> = rows
+        .iter()
+        .filter_map(|r| {
+            let name = r.get("display_name").and_then(Value::as_str).map(str::trim).filter(|n| !n.is_empty())?;
+            let pct = r.get("percent_of_limit").and_then(Value::as_f64)?.round() as i64;
+            (pct > 0).then_some((name, pct))
+        })
+        .collect();
+    if parts.is_empty() {
+        return None;
+    }
+    parts.sort_by_key(|(_, pct)| std::cmp::Reverse(*pct));
+    let value = parts.iter().map(|(name, pct)| format!("{name} {pct}%")).collect::<Vec<_>>().join(" · ");
+    Some(UsageItem::text("Weekly breakdown", value))
 }
 
 /// Label for an entry of the structured `limits` array.
@@ -239,13 +318,10 @@ pub fn parse_claude_usage(v: &Value, plan: Option<&str>) -> Usage {
             }
         }
     }
-    if let Some(extra) = v.get("extra_usage").filter(|e| e.get("is_enabled").and_then(Value::as_bool) == Some(true))
-        && let Some(pct) = extra.get("utilization").and_then(Value::as_f64)
-    {
-        items.push(UsageItem::percent("Extra usage (monthly)", pct, None));
-    }
+    items.extend(weekly_breakdown(v));
+    items.extend(extra_usage(v));
     if let Some(p) = plan.filter(|p| !p.is_empty()) {
-        items.push(UsageItem::text("Plan", title_case(p)));
+        items.push(UsageItem::text("Plan", p));
     }
     Usage {
         items,
@@ -279,13 +355,14 @@ pub fn provider() -> Box<dyn Provider> {
                     ("org", "/oauthAccount/organizationName"),
                     ("role", "/oauthAccount/organizationRole"),
                     ("billing", "/oauthAccount/billingType"),
+                    ("plan", "/oauthAccount/planDisplayName"),
                 ],
             },
             IdentityResolver::Command(Cmd {
                 argv: &["claude", "auth", "status"],
                 parse: Parse::Json("/email"),
                 is_email: true,
-                extra: &[("org", "/orgName"), ("plan", "/subscriptionType")],
+                extra: &[("org", "/orgName")],
             }),
         ]),
         verify: Some(Cmd {
@@ -316,13 +393,14 @@ mod tests {
         .unwrap();
         std::fs::write(
             dir.path().join(".claude.json"),
-            r#"{"numStartups":5,"userID":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","oauthAccount":{"accountUuid":"u1","emailAddress":"A@Example.com","organizationName":"Org A","organizationRole":"admin","billingType":"stripe_subscription"},"projects":{"/x":{}}}"#,
+            r#"{"numStartups":5,"userID":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","oauthAccount":{"accountUuid":"u1","emailAddress":"A@Example.com","organizationName":"Org A","organizationRole":"admin","billingType":"stripe_subscription","planDisplayName":"Ultra"},"projects":{"/x":{}}}"#,
         )
         .unwrap();
         let p = provider();
         let live = p.live_identity(&cx).unwrap().unwrap();
         assert_eq!(live.id, "a@example.com");
         assert_eq!(live.extra["org"], "Org A");
+        assert_eq!(live.extra["plan"], "Ultra");
         let cap = p.capture(&cx).unwrap().unwrap();
 
         // switch to B by hand, then restore A: unrelated keys in ~/.claude.json survive
@@ -360,7 +438,7 @@ mod tests {
                 ]}"#,
         )
         .unwrap();
-        let u = parse_claude_usage(&v, Some("max"));
+        let u = parse_claude_usage(&v, Some("Ultra"));
         let labels: Vec<&str> = u.items.iter().map(|i| i.label.as_str()).collect();
         assert_eq!(labels, ["Session (5h)", "Weekly", "Weekly · Fable", "Plan"]);
         assert_eq!(u.items[0].detail.as_deref(), Some("limit reached"));
@@ -371,6 +449,107 @@ mod tests {
             }
             other => panic!("unexpected {other:?}"),
         }
+    }
+
+    /// The response as of November 2026: no session window, `spend` next to `extra_usage`,
+    /// and a weekly breakdown by surface.
+    #[test]
+    fn reads_the_current_response_shape() {
+        let v: Value = serde_json::from_str(
+            r#"{"five_hour":null,
+                "seven_day":{"utilization":65.0,"resets_at":"2026-11-25T10:00:00.157629+00:00","limit_dollars":null,"used_dollars":null,"remaining_dollars":null,"locked_reason":null},
+                "seven_day_opus":null,"seven_day_sonnet":null,"amber_ladder":null,"pace":null,
+                "extra_usage":{"is_enabled":false,"monthly_limit":null,"used_credits":null,"utilization":null,"currency":null,"daily":null,"weekly":null},
+                "limits":[
+                  {"kind":"weekly_all","group":"weekly","percent":65,"severity":"normal","resets_at":"2026-11-25T10:00:00.157629+00:00","scope":null,"is_active":false},
+                  {"kind":"weekly_scoped","group":"weekly","percent":78,"severity":"warning","resets_at":"2026-11-25T10:00:00.157758+00:00","scope":{"model":{"id":null,"display_name":"Fable"},"surface":null},"is_active":true}
+                ],
+                "spend":{"used":{"amount_minor":0,"currency":"USD","exponent":2},"limit":null,"percent":0,"severity":"normal","enabled":false,"cap":null,"balance":null},
+                "seven_day_breakdown":{"rows":[{"key":"claude_code","display_name":"Claude Code","percent":100,"percent_of_limit":65}]},
+                "weekly_scoped_shares":[{"limit_index":1,"used_percent_of_weekly":39,"allowance_percent_of_weekly":50}]}"#,
+        )
+        .unwrap();
+        let u = parse_claude_usage(&v, Some("Ultra"));
+        let rows: Vec<(String, String)> = u.items.iter().map(|i| (i.label.clone(), i.value_text())).collect();
+        assert_eq!(
+            rows,
+            [
+                ("Weekly".to_string(), "65% used".to_string()),
+                ("Weekly · Fable".to_string(), "78% used".to_string()),
+                ("Weekly breakdown".to_string(), "Claude Code 65%".to_string()),
+                ("Plan".to_string(), "Ultra".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn weekly_breakdown_lists_products_by_share() {
+        let v: Value = serde_json::from_str(
+            r#"{"seven_day_breakdown":{"rows":[
+                {"key":"claude_code","display_name":"Claude Code","percent":20,"percent_of_limit":8},
+                {"key":"chat","display_name":"Chats","percent":75,"percent_of_limit":30.4},
+                {"key":"cowork","display_name":"Cowork","percent":5,"percent_of_limit":2},
+                {"key":"other","display_name":"Other","percent":0,"percent_of_limit":0.2}
+            ]}}"#,
+        )
+        .unwrap();
+        let item = weekly_breakdown(&v).unwrap();
+        assert_eq!(item.label, "Weekly breakdown");
+        assert_eq!(item.value_text(), "Chats 30% · Claude Code 8% · Cowork 2%");
+
+        let idle: Value = serde_json::from_str(
+            r#"{"seven_day_breakdown":{"rows":[{"key":"chat","display_name":"Chats","percent":0,"percent_of_limit":0}]}}"#,
+        )
+        .unwrap();
+        assert!(weekly_breakdown(&idle).is_none());
+        assert!(weekly_breakdown(&serde_json::json!({"seven_day_breakdown": null})).is_none());
+    }
+
+    #[test]
+    fn extra_usage_comes_from_spend() {
+        let with_limit: Value = serde_json::from_str(
+            r#"{"spend":{"enabled":true,"percent":25,"used":{"amount_minor":1250,"currency":"USD","exponent":2},"limit":{"amount_minor":5000,"currency":"USD","exponent":2}},
+                "extra_usage":{"is_enabled":true,"utilization":99}}"#,
+        )
+        .unwrap();
+        let item = extra_usage(&with_limit).unwrap();
+        assert_eq!(item.label, "Extra usage");
+        assert_eq!(item.value_text(), "25% used");
+        assert_eq!(item.detail.as_deref(), Some("$12.50 of $50.00"));
+
+        let no_limit: Value =
+            serde_json::from_str(r#"{"spend":{"enabled":true,"percent":0,"used":{"amount_minor":700,"currency":"EUR","exponent":2},"limit":null}}"#)
+                .unwrap();
+        assert_eq!(extra_usage(&no_limit).unwrap().value_text(), "7.00 EUR spent");
+
+        let disabled: Value =
+            serde_json::from_str(r#"{"spend":{"enabled":false},"extra_usage":{"is_enabled":true,"utilization":40}}"#)
+                .unwrap();
+        assert!(extra_usage(&disabled).is_none());
+
+        let legacy: Value = serde_json::from_str(r#"{"extra_usage":{"is_enabled":true,"utilization":40}}"#).unwrap();
+        let item = extra_usage(&legacy).unwrap();
+        assert_eq!(item.label, "Extra usage (monthly)");
+        assert_eq!(item.value_text(), "40% used");
+    }
+
+    #[test]
+    fn plan_name_prefers_the_server_name() {
+        let creds: Value = serde_json::from_str(
+            r#"{"claudeAiOauth":{"subscriptionType":"max","rateLimitTier":"default_claude_max_20x"}}"#,
+        )
+        .unwrap();
+        let account: Value = serde_json::from_str(r#"{"oauthAccount":{"planDisplayName":"Ultra"}}"#).unwrap();
+        assert_eq!(plan_name(&creds, Some(&account)).as_deref(), Some("Ultra"));
+        let unnamed: Value = serde_json::from_str(r#"{"oauthAccount":{"planDisplayName":" "}}"#).unwrap();
+        assert_eq!(plan_name(&creds, Some(&unnamed)).as_deref(), Some("Max 20x"));
+        assert_eq!(plan_name(&creds, None).as_deref(), Some("Max 20x"));
+
+        let pro: Value =
+            serde_json::from_str(r#"{"claudeAiOauth":{"subscriptionType":"pro","rateLimitTier":"default_claude_ai"}}"#)
+                .unwrap();
+        assert_eq!(plan_name(&pro, None).as_deref(), Some("Pro"));
+        assert_eq!(plan_name(&serde_json::json!({}), None), None);
     }
 
     #[test]
