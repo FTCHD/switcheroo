@@ -141,6 +141,9 @@ fn usage(_cx: &Cx, slots: &[Option<Vec<u8>>]) -> Result<Option<Usage>> {
     let Some(token) = creds.pointer("/claudeAiOauth/accessToken").and_then(Value::as_str) else { return Ok(None) };
     let account: Option<Value> = slots.get(1).and_then(|s| s.as_deref()).and_then(|b| serde_json::from_slice(b).ok());
     let plan = plan_name(&creds, account.as_ref());
+    if token_expired(&creds, Utc::now()) {
+        return Ok(Some(expired_usage(plan.as_deref())));
+    }
     let auth = format!("Bearer {token}");
     let headers = [
         ("Authorization", auth.as_str()),
@@ -163,6 +166,30 @@ fn usage(_cx: &Cx, slots: &[Option<Vec<u8>>]) -> Result<Option<Usage>> {
         return Ok(Some(parse_claude_usage(json, plan.as_deref())));
     }
     bail!("Claude usage endpoint not found ({})", last.unwrap_or_default())
+}
+
+/// `expiresAt` is in milliseconds. Switcheroo does not renew the token itself, because a
+/// renewal replaces the refresh token that Claude Code holds.
+fn token_expired(creds: &Value, now: DateTime<Utc>) -> bool {
+    creds
+        .pointer("/claudeAiOauth/expiresAt")
+        .and_then(Value::as_f64)
+        .is_some_and(|ms| ms <= now.timestamp_millis() as f64)
+}
+
+/// Shown instead of calling the API with a token that has expired.
+fn expired_usage(plan: Option<&str>) -> Usage {
+    let mut expired = UsageItem::text("Usage", "Token expired");
+    expired.detail = Some("Claude Code renews it the next time it runs".into());
+    let mut items = vec![expired];
+    if let Some(p) = plan.filter(|p| !p.is_empty()) {
+        items.push(UsageItem::text("Plan", p));
+    }
+    Usage {
+        items,
+        note: Some("The access token of this login has expired, so Claude cannot be asked for usage. Claude Code renews the token the next time it runs; you do not need to sign in again.".into()),
+        fetched_at: Utc::now(),
+    }
 }
 
 fn iso(v: Option<&Value>) -> Option<DateTime<Utc>> {
@@ -550,6 +577,21 @@ mod tests {
                 .unwrap();
         assert_eq!(plan_name(&pro, None).as_deref(), Some("Pro"));
         assert_eq!(plan_name(&serde_json::json!({}), None), None);
+    }
+
+    #[test]
+    fn an_expired_token_is_not_sent() {
+        let now = DateTime::parse_from_rfc3339("2026-11-23T16:00:00Z").unwrap().with_timezone(&Utc);
+        let creds = |ms: i64| serde_json::json!({"claudeAiOauth": {"accessToken": "x", "expiresAt": ms}});
+        assert!(token_expired(&creds(now.timestamp_millis() - 1), now));
+        assert!(token_expired(&creds(now.timestamp_millis()), now));
+        assert!(!token_expired(&creds(now.timestamp_millis() + 60_000), now));
+        assert!(!token_expired(&serde_json::json!({"claudeAiOauth": {"accessToken": "x"}}), now));
+
+        let u = expired_usage(Some("Ultra"));
+        let rows: Vec<(&str, String)> = u.items.iter().map(|i| (i.label.as_str(), i.value_text())).collect();
+        assert_eq!(rows, [("Usage", "Token expired".to_string()), ("Plan", "Ultra".to_string())]);
+        assert_eq!(u.items[0].detail.as_deref(), Some("Claude Code renews it the next time it runs"));
     }
 
     #[test]
