@@ -132,6 +132,7 @@ export function useRefresh() {
 }
 
 export function useRemove() {
+    const qc = useQueryClient()
     const invalidate = useInvalidate()
     return useMutation({
         mutationFn: ({ provider, account }: { provider: string; account: string }) =>
@@ -139,6 +140,20 @@ export function useRemove() {
                 `/api/accounts/${encodeURIComponent(provider)}/${encodeURIComponent(account)}`
             ),
         onSuccess: (a) => {
+            // The refetch takes a few seconds; drop the account now so it leaves with the dialog.
+            // A native account stays: the CLI still lists it.
+            if (a.has_secret) {
+                const drop = (s: ProviderStatus): ProviderStatus =>
+                    s.info.id !== a.provider
+                        ? s
+                        : {
+                              ...s,
+                              accounts: s.accounts.filter((x) => x.id !== a.id),
+                              active_account: s.active_account === a.id ? null : s.active_account,
+                          }
+                qc.setQueryData<ProviderStatus[]>(keys.providers, (list) => list?.map(drop))
+                qc.setQueryData<ProviderStatus>(keys.provider(a.provider), (s) => s && drop(s))
+            }
             notify.success(`Forgot ${a.label}`)
             invalidate()
         },

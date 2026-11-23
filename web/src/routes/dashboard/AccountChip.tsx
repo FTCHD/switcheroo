@@ -1,5 +1,5 @@
 import { CheckIcon, ChevronDownIcon } from 'lucide-react'
-import { useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import { useRemove, useRename, useSwitch } from '@/api/queries'
 import type { Account } from '@/api/types'
 import {
@@ -53,7 +53,13 @@ export function AccountChip({
     const [forgetting, setForgetting] = useState(false)
     const pending = sw.isPending
 
-    const doSwitch = () => sw.mutate({ provider: account.provider, account: account.id })
+    const doSwitch = (onDone?: () => void) =>
+        sw.mutate({ provider: account.provider, account: account.id }, { onSuccess: onDone })
+    const forget = () =>
+        remove.mutate(
+            { provider: account.provider, account: account.id },
+            { onSuccess: () => setForgetting(false) }
+        )
 
     return (
         <>
@@ -147,7 +153,12 @@ export function AccountChip({
                 </DialogContent>
             </Dialog>
 
-            <AlertDialog open={confirming} onOpenChange={setConfirming}>
+            <AlertDialog
+                open={confirming}
+                onOpenChange={(open) => {
+                    if (!pending) setConfirming(open)
+                }}
+            >
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle>Switch to {account.label}?</AlertDialogTitle>
@@ -157,13 +168,24 @@ export function AccountChip({
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={doSwitch}>Switch</AlertDialogAction>
+                        <AlertDialogCancel disabled={pending}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            disabled={pending}
+                            className={cn('relative', pending && 'disabled:opacity-100')}
+                            onClick={() => doSwitch(() => setConfirming(false))}
+                        >
+                            <BusyLabel busy={pending}>Switch</BusyLabel>
+                        </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
 
-            <AlertDialog open={forgetting} onOpenChange={setForgetting}>
+            <AlertDialog
+                open={forgetting}
+                onOpenChange={(open) => {
+                    if (!remove.isPending) setForgetting(open)
+                }}
+            >
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle>Forget {account.label}?</AlertDialogTitle>
@@ -174,18 +196,28 @@ export function AccountChip({
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel>Keep</AlertDialogCancel>
+                        <AlertDialogCancel disabled={remove.isPending}>Keep</AlertDialogCancel>
                         <AlertDialogAction
                             variant="destructive"
-                            onClick={() =>
-                                remove.mutate({ provider: account.provider, account: account.id })
-                            }
+                            disabled={remove.isPending}
+                            className={cn('relative', remove.isPending && 'disabled:opacity-100')}
+                            onClick={forget}
                         >
-                            Forget
+                            <BusyLabel busy={remove.isPending}>Forget</BusyLabel>
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+        </>
+    )
+}
+
+/** Swaps the label for a spinner without changing the button's width. */
+function BusyLabel({ busy, children }: { busy: boolean; children: ReactNode }) {
+    return (
+        <>
+            <span className={cn(busy && 'invisible')}>{children}</span>
+            {busy && <Spinner className="absolute" />}
         </>
     )
 }
