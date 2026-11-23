@@ -204,6 +204,17 @@ impl Cx {
         None
     }
 
+    /// The filesystem root. CLIs run from there, so the folder Switcheroo starts in cannot change
+    /// what they report: Wrangler picks a profile by folder, and npm reads a project `.npmrc`.
+    fn neutral_dir(&self) -> PathBuf {
+        self.home
+            .ancestors()
+            .last()
+            .filter(|p| p.has_root())
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| PathBuf::from("/"))
+    }
+
     /// Run a CLI non-interactively, capturing output. `argv[0]` is resolved on our PATH.
     pub fn run(&self, argv: &[&str], timeout: Duration) -> Result<CmdOutput> {
         if !self.commands_allowed {
@@ -213,6 +224,7 @@ impl Cx {
         let resolved = self.find_binary(&[program]).unwrap_or_else(|| PathBuf::from(program));
         let child = Command::new(&resolved)
             .args(args)
+            .current_dir(self.neutral_dir())
             .env("PATH", self.path_string())
             .env("NO_COLOR", "1")
             .env("CI", "1")
@@ -238,7 +250,7 @@ impl Cx {
         let (program, args) = argv.split_first().context("empty argv")?;
         let resolved = self.find_binary(&[program.as_str()]).unwrap_or_else(|| PathBuf::from(program));
         let mut cmd = Command::new(&resolved);
-        cmd.args(args).env("PATH", self.path_string());
+        cmd.args(args).current_dir(self.neutral_dir()).env("PATH", self.path_string());
         for key in remove {
             cmd.env_remove(key);
         }
@@ -320,6 +332,21 @@ fn well_known_bin_dirs(home: &Path) -> Vec<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn commands_run_from_the_filesystem_root() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let bin = dir.path().join("bin");
+        std::fs::create_dir_all(&bin).unwrap();
+        let script = bin.join("where");
+        std::fs::write(&script, "#!/bin/sh\npwd\n").unwrap();
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let cx = Cx::test_with_commands(dir.path(), Os::Linux, &bin);
+        let out = cx.run(&["where"], Duration::from_secs(10)).unwrap();
+        assert_eq!(out.stdout.trim(), "/");
+    }
 
     #[test]
     fn os_specific_dirs_derive_from_home() {
