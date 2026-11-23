@@ -70,6 +70,15 @@ impl Cx {
         Cx { home: home.to_path_buf(), env, path: Vec::new(), os, commands_allowed: false }
     }
 
+    /// Like `test`, but commands run, and only from `bin`.
+    #[cfg(test)]
+    pub fn test_with_commands(home: &Path, os: Os, bin: &Path) -> Cx {
+        let mut cx = Cx::test(home, os);
+        cx.commands_allowed = true;
+        cx.path = vec![bin.to_path_buf()];
+        cx
+    }
+
     #[cfg(test)]
     pub fn set_env(&mut self, key: &str, value: &str) {
         self.env.insert(key.to_string(), value.to_string());

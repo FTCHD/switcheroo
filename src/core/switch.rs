@@ -54,19 +54,26 @@ impl Core {
             .ok_or_else(|| OpError::NotInstalled(p.meta().name.to_string(), p.meta().binaries.join("/")).into())
     }
 
-    /// Live identity with the fingerprint cache, so network `whoami` runs only on change.
+    /// Live identity with the fingerprint cache, so network `whoami` runs only on change. A
+    /// changed or refreshed login of a saved account also goes into the vault (see `sync_live`).
     pub fn live_identity(&self, p: &dyn Provider, refresh: bool) -> Result<Option<Identity>> {
         let id = p.meta().id;
         let fp = p.fingerprint(&self.cx)?;
+        let cached = self.state().live_cache.get(id).cloned();
         if !refresh
-            && let Some(fp) = fp
-            && let Some(cached) = self.state().live_cache.get(id)
-            && cached.fingerprint == fp
+            && let (Some(fp), Some(c)) = (fp, &cached)
+            && c.fingerprint == fp
         {
-            return Ok(cached.identity.clone());
+            return Ok(c.identity.clone());
         }
-        let live = p.live_identity(&self.cx)?;
-        if let Some(fp) = fp {
+        let changed = fp.is_some() && cached.map(|c| c.fingerprint) != fp;
+        let live = if (changed || refresh) && p.meta().strategy == Strategy::SlotSwap {
+            self.sync_live(p)?
+        } else {
+            p.live_identity(&self.cx)?
+        };
+        // A `whoami` can refresh the login, so cache the fingerprint of what is there now.
+        if let Some(fp) = p.fingerprint(&self.cx)? {
             let mut st = self.state();
             st.live_cache.insert(id.to_string(), LiveCache { fingerprint: fp, identity: live.clone(), at: Utc::now() });
             self.persist(&mut st, "state.changed", Some(id), None)?;
@@ -322,8 +329,9 @@ impl Core {
                 }
                 p.activate(&self.cx, &install, &target.identity)
                     .with_context(|| format!("writing {} credentials", meta.name))?;
+                let written = p.fingerprint(&self.cx).ok().flatten();
                 match p.verify(&self.cx, &target.identity) {
-                    Ok(true) => {}
+                    Ok(true) => warnings.extend(self.store_refreshed(p, &target, written)),
                     Ok(false) => {
                         let restored = match &previous {
                             Some(prev) => {
@@ -335,7 +343,13 @@ impl Core {
                             Ok(()) => "restored the previous login",
                             Err(_) => "and the previous login could not be restored",
                         };
-                        bail!("{} did not report {} as logged in after the switch; {}", meta.name, target.label, note);
+                        bail!(
+                            "{} did not report {} as logged in after the switch; {}. The saved login may have expired: sign in to it again with `switcheroo login {}`",
+                            meta.name,
+                            target.label,
+                            note,
+                            meta.id
+                        );
                     }
                     Err(e) => warnings.push(Warning::warn("unverified", format!("could not verify the switch: {e:#}"))),
                 }
@@ -386,6 +400,71 @@ impl Core {
             warnings.push(Warning::info("restart", hint));
         }
         Ok(SwitchOutcome { provider: meta.id.to_string(), account, recaptured: recaptured.map(|i| i.id), warnings })
+    }
+
+    /// Verify can refresh the new login. When the CLI rotates refresh tokens (Wrangler), the
+    /// vault copy then stops working, so store the live login again.
+    fn store_refreshed(&self, p: &dyn Provider, target: &Account, written: Option<u64>) -> Option<Warning> {
+        let written = written?;
+        if p.fingerprint(&self.cx).ok().flatten() == Some(written) {
+            return None;
+        }
+        let stored = p.capture(&self.cx).and_then(|captured| match captured {
+            Some(c) if c.identity.as_ref().is_some_and(|i| i.same_as(&target.identity)) => {
+                self.vault.put(&target.vault_key(), &format!("{} {}", p.meta().name, target.label), &c.secret)
+            }
+            _ => Ok(()),
+        });
+        stored.err().map(|e| Warning::warn("resave", format!("could not store the refreshed login: {e:#}")))
+    }
+
+    /// CLIs refresh their logins on their own, and with rotating refresh tokens (Wrangler) an
+    /// older vault copy stops working. Read the live login under the lock and store it when it
+    /// belongs to a saved account. A failed vault write is logged, so status still works.
+    fn sync_live(&self, p: &dyn Provider) -> Result<Option<Identity>> {
+        let _lock = self.lock()?;
+        let Some(captured) = p.capture(&self.cx)? else { return Ok(None) };
+        if let Some(e) = captured.identity_error {
+            return Err(anyhow!(e));
+        }
+        if let Some(identity) = &captured.identity
+            && let Err(e) = self.store_if_saved(p, identity, &captured.secret)
+        {
+            log::warn!("{}: could not store the changed login: {e:#}", p.meta().id);
+        }
+        Ok(captured.identity)
+    }
+
+    /// Before a login replaces the live slot, store the live login of a saved account again.
+    fn resave_live(&self, p: &dyn Provider) -> Result<()> {
+        if p.meta().strategy != Strategy::SlotSwap {
+            return Ok(());
+        }
+        let _lock = self.lock()?;
+        if let Some(captured) = p.capture(&self.cx)?
+            && let Some(identity) = &captured.identity
+        {
+            self.store_if_saved(p, identity, &captured.secret)?;
+        }
+        Ok(())
+    }
+
+    /// Replace the vault copy of a saved account when it differs. Unsaved accounts and imports
+    /// that wait to be installed are left alone.
+    fn store_if_saved(&self, p: &dyn Provider, identity: &Identity, secret: &SecretBlob) -> Result<()> {
+        let meta = p.meta();
+        let target = {
+            let st = self.state();
+            st.accounts_for(meta.id)
+                .into_iter()
+                .find(|a| a.id == identity.id && a.has_secret && !st.install_saved.contains(&a.vault_key()))
+        };
+        let Some(acct) = target else { return Ok(()) };
+        let key = acct.vault_key();
+        if self.vault.get(&key)?.is_some_and(|saved| saved.as_bytes() == secret.as_bytes()) {
+            return Ok(());
+        }
+        self.vault.put(&key, &format!("{} {}", meta.name, acct.label), secret)
     }
 
     pub fn remove(&self, provider_id: &str, query: &str) -> Result<Account> {
@@ -459,11 +538,15 @@ impl Core {
                 p.meta().id
             );
         }
+        let note = self
+            .resave_live(p)
+            .err()
+            .map(|e| format!("Could not store the current {} login before signing in: {e:#}", p.meta().name));
         let code = self.cx.run_interactive(&argv).with_context(|| format!("running {}", argv.join(" ")))?;
         if code != 0 {
             bail!("`{}` exited with status {}", argv.join(" "), code);
         }
-        Ok(LoginResult { account: self.save(provider_id, label)?, note: None })
+        Ok(LoginResult { account: self.save(provider_id, label)?, note })
     }
 
     /// Open a terminal window running `switcheroo login <provider>`.
@@ -773,5 +856,158 @@ mod tests {
         let slot: serde_json::Value = serde_json::from_slice(&raw).unwrap();
         assert_eq!(slot["user"], "b@x.io");
         assert_eq!(slot["token"], "t-b");
+    }
+
+    fn saved_token(core: &Core, id: &str) -> String {
+        let blob = core.vault.get(&format!("mock:{id}")).unwrap().expect("saved login");
+        let stored: serde_json::Value = serde_json::from_slice(blob.as_bytes()).unwrap();
+        let raw = base64::engine::general_purpose::STANDARD.decode(stored["slots"][0].as_str().unwrap()).unwrap();
+        let slot: serde_json::Value = serde_json::from_slice(&raw).unwrap();
+        slot["token"].as_str().unwrap().to_string()
+    }
+
+    /// A mock CLI that rotates tokens like Wrangler: `whoami` replaces `<x>-expired` with
+    /// `<x>-fresh`, and `mocklogin` signs in as c@x.io.
+    #[cfg(unix)]
+    fn rotating_core(dir: &std::path::Path) -> std::sync::Arc<Core> {
+        use crate::providers::identity::{Cmd, IdentityResolver, Parse};
+        use std::os::unix::fs::PermissionsExt;
+        const WHO: Cmd = Cmd { argv: &["mockwho"], parse: Parse::Trim, is_email: true, extra: &[] };
+
+        let bin = dir.join("bin");
+        std::fs::create_dir_all(&bin).unwrap();
+        let file = dir.join("mock.json").display().to_string();
+        let whoami = format!(
+            r#"#!/bin/sh
+c=$(while IFS= read -r l || [ -n "$l" ]; do printf '%s' "$l"; done < '{file}')
+case "$c" in
+  *'"a-expired"'*) printf '%s' '{{"token":"a-fresh","user":"a@x.io"}}' > '{file}' ;;
+  *'"b-expired"'*) printf '%s' '{{"token":"b-fresh","user":"b@x.io"}}' > '{file}' ;;
+esac
+case "$c" in
+  *a@x.io*) echo a@x.io ;;
+  *b@x.io*) echo b@x.io ;;
+  *c@x.io*) echo c@x.io ;;
+esac
+"#
+        );
+        let login = format!("#!/bin/sh\nprintf '%s' '{{\"token\":\"c-1\",\"user\":\"c@x.io\"}}' > '{file}'\n");
+        for (name, body) in [("mockwho", whoami), ("mocklogin", login)] {
+            let path = bin.join(name);
+            std::fs::write(&path, body).unwrap();
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+
+        let mut provider = json_file_provider();
+        provider.identity = IdentityResolver::Command(WHO);
+        provider.verify = Some(WHO);
+        provider.meta.login = &["mocklogin"];
+        let core = Core::open(CoreOpts {
+            data_dir: Some(dir.join("data")),
+            vault: Some(VaultChoice::File),
+            cx: Some(Cx::test_with_commands(dir, Os::Linux, &bin)),
+            providers: Some(vec![Box::new(provider)]),
+        })
+        .unwrap();
+        core.detect_cache.lock().unwrap().insert("mock", Some(Installed { path: "/bin/mock".into(), version: None }));
+        core
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn switch_keeps_the_logins_that_whoami_and_verify_refreshed() {
+        let dir = tempfile::tempdir().unwrap();
+        let core = rotating_core(dir.path());
+        let file = dir.path().join("mock.json");
+
+        std::fs::write(&file, r#"{"token":"b-expired","user":"b@x.io"}"#).unwrap();
+        core.save("mock", None).unwrap();
+        assert_eq!(saved_token(&core, "b@x.io"), "b-fresh");
+
+        // Time passes: the saved B token and the live A token have both expired.
+        let b = base64::engine::general_purpose::STANDARD.encode(r#"{"token":"b-expired","user":"b@x.io"}"#);
+        let blob = SecretBlob::new(serde_json::to_vec(&serde_json::json!({"v": 1, "slots": [b]})).unwrap());
+        core.vault.put("mock:b@x.io", "Mock CLI b@x.io", &blob).unwrap();
+        std::fs::write(&file, r#"{"token":"a-expired","user":"a@x.io"}"#).unwrap();
+
+        let out = core.use_account("mock", "b@x.io").unwrap();
+        assert_eq!(out.recaptured.as_deref(), Some("a@x.io"));
+        assert_eq!(saved_token(&core, "a@x.io"), "a-fresh");
+        assert_eq!(saved_token(&core, "b@x.io"), "b-fresh");
+        let live: serde_json::Value = serde_json::from_slice(&std::fs::read(&file).unwrap()).unwrap();
+        assert_eq!(live["token"], "b-fresh");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn login_stores_the_current_login_before_replacing_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let core = rotating_core(dir.path());
+        let file = dir.path().join("mock.json");
+        std::fs::write(&file, r#"{"token":"a-1","user":"a@x.io"}"#).unwrap();
+        core.save("mock", None).unwrap();
+        // The CLI refreshed A after it was saved.
+        std::fs::write(&file, r#"{"token":"a-2","user":"a@x.io"}"#).unwrap();
+
+        let out = core.login_here("mock", None).unwrap();
+        assert_eq!(out.account.id, "c@x.io");
+        assert!(out.note.is_none(), "{:?}", out.note);
+        assert_eq!(saved_token(&core, "a@x.io"), "a-2");
+        assert_eq!(saved_token(&core, "c@x.io"), "c-1");
+    }
+
+    #[test]
+    fn status_stores_a_changed_login_of_a_saved_account() {
+        let dir = tempfile::tempdir().unwrap();
+        let core = core(dir.path());
+        core.detect_cache.lock().unwrap().insert("mock", Some(Installed { path: "/bin/mock".into(), version: None }));
+        let p = core.provider("mock").unwrap();
+        let file = dir.path().join("mock.json");
+        std::fs::write(&file, r#"{"token":"a-1","user":"a@x.io"}"#).unwrap();
+        core.save("mock", None).unwrap();
+
+        // The CLI refreshed A on its own.
+        std::fs::write(&file, r#"{"token":"a-2","user":"a@x.io"}"#).unwrap();
+        assert_eq!(core.status(p, false).live.unwrap().id, "a@x.io");
+        assert_eq!(saved_token(&core, "a@x.io"), "a-2");
+
+        // Another process cached the newer login without saving it: only a refresh stores it.
+        std::fs::write(&file, r#"{"token":"a-3","user":"a@x.io"}"#).unwrap();
+        let fingerprint = p.fingerprint(&core.cx).unwrap().unwrap();
+        let identity = Some(Identity::from_email("a@x.io"));
+        core.state().live_cache.insert("mock".into(), LiveCache { fingerprint, identity, at: Utc::now() });
+        core.status(p, false);
+        assert_eq!(saved_token(&core, "a@x.io"), "a-2");
+        core.status(p, true);
+        assert_eq!(saved_token(&core, "a@x.io"), "a-3");
+
+        // An account that was never saved stays unsaved.
+        std::fs::write(&file, r#"{"token":"b-1","user":"b@x.io"}"#).unwrap();
+        assert_eq!(core.status(p, false).live.unwrap().id, "b@x.io");
+        assert!(core.vault.get("mock:b@x.io").unwrap().is_none());
+        assert_eq!(core.state().accounts_for("mock").len(), 1);
+        assert_eq!(saved_token(&core, "a@x.io"), "a-3");
+    }
+
+    #[test]
+    fn status_leaves_an_import_that_waits_to_be_installed() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut provider = json_file_provider();
+        provider.import_login = Some(|_cx| Ok(br#"{"token":"t-new","user":"a@x.io"}"#.to_vec()));
+        let core = Core::open(CoreOpts {
+            data_dir: Some(dir.path().join("data")),
+            vault: Some(VaultChoice::File),
+            cx: Some(Cx::test(dir.path(), Os::Linux)),
+            providers: Some(vec![Box::new(provider)]),
+        })
+        .unwrap();
+        core.detect_cache.lock().unwrap().insert("mock", Some(Installed { path: "/bin/mock".into(), version: None }));
+        let file = dir.path().join("mock.json");
+        std::fs::write(&file, r#"{"token":"t-old","user":"a@x.io"}"#).unwrap();
+        core.login_here("mock", None).unwrap();
+
+        std::fs::write(&file, r#"{"token":"t-old-2","user":"a@x.io"}"#).unwrap();
+        core.status(core.provider("mock").unwrap(), false);
+        assert_eq!(saved_token(&core, "a@x.io"), "t-new");
     }
 }

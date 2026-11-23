@@ -130,7 +130,7 @@ impl Provider for SlotProvider {
 
     fn capture(&self, cx: &Cx) -> Result<Option<Captured>> {
         let slots = (self.slots)(cx);
-        let data = self.read_all(&slots)?;
+        let mut data = self.read_all(&slots)?;
         if data.iter().all(Option::is_none) {
             return Ok(None);
         }
@@ -138,6 +138,14 @@ impl Provider for SlotProvider {
             Ok(i) => (i, None),
             Err(e) => (None, Some(format!("{e:#}"))),
         };
+        // A `whoami` can refresh the login. When the CLI rotates refresh tokens (Wrangler),
+        // the bytes read before it no longer work, so keep the refreshed ones.
+        if !self.identity.is_offline() {
+            let after = self.read_all(&slots)?;
+            if after.iter().any(Option::is_some) {
+                data = after;
+            }
+        }
         Ok(Some(Captured { identity, secret: Self::encode(&data), identity_error }))
     }
 
